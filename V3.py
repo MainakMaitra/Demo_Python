@@ -1,6 +1,5 @@
 # Structured Complaints Precision Drop Analysis - Banking Domain
 # Investigation Framework Following Systematic Approach
-# Synchrony Use Case - Root Cause Investigation
 
 import pandas as pd
 import numpy as np
@@ -67,8 +66,7 @@ def load_and_prepare_data():
             'Primary L2': np.random.choice(['fee_waiver', 'credit_limit', 'payment_issue', 'account_inquiry', 'billing_dispute'], sample_size),
             'Primary Marker': np.random.choice(['TP', 'FP'], sample_size, p=[0.65, 0.35]),
             'Secondary Marker': np.random.choice(['TP', 'FP', None], sample_size, p=[0.3, 0.15, 0.55]),
-            'Date': np.random.choice(dates, sample_size),
-            'Category_Added_Date': np.random.choice(pd.date_range('2024-08-01', '2024-12-01', freq='M'), sample_size)
+            'Date': np.random.choice(dates, sample_size)
         })
     
     # Load validation summary
@@ -99,7 +97,6 @@ def load_and_prepare_data():
     
     # Enhanced data preprocessing
     df_main['Date'] = pd.to_datetime(df_main['Date'])
-    df_main['Category_Added_Date'] = pd.to_datetime(df_main['Category_Added_Date'])
     df_main['Year_Month'] = df_main['Date'].dt.strftime('%Y-%m')
     df_main['DayOfWeek'] = df_main['Date'].dt.day_name()
     df_main['WeekOfMonth'] = df_main['Date'].dt.day // 7 + 1
@@ -142,10 +139,6 @@ def load_and_prepare_data():
         (df_main['Primary Marker'] == df_main['Secondary Marker']).astype(int),
         np.nan
     )
-    
-    # Category metadata
-    df_main['Category_Age_Days'] = (df_main['Date'] - df_main['Category_Added_Date']).dt.days
-    df_main['Is_New_Category'] = df_main['Category_Age_Days'] <= 30
     
     print(f"Data preparation completed. Final dataset shape: {df_main.shape}")
     
@@ -246,32 +239,56 @@ def analyze_precision_drop_patterns(df):
     
     print("\n1.4 New Categories Analysis")
     
-    # Check for recently added categories
-    new_category_impact = df[df['Is_New_Category']].groupby(['Prosodica L1', 'Prosodica L2']).agg({
-        'Is_TP': ['sum', 'count'],
-        'Is_FP': 'sum'
-    }).reset_index()
-    
-    if len(new_category_impact) > 0:
-        new_category_impact.columns = ['L1_Category', 'L2_Category', 'TPs', 'Total_Flagged', 'FPs']
-        new_category_impact['Precision'] = np.where(
-            new_category_impact['Total_Flagged'] > 0,
-            new_category_impact['TPs'] / new_category_impact['Total_Flagged'],
-            0
-        )
+    # Alternative approach: Check for categories with limited historical data
+    # Categories appearing in only recent months could be considered "new"
+    all_months = sorted(df['Year_Month'].unique())
+    if len(all_months) >= 3:
+        recent_months = all_months[-2:]  # Last 2 months
         
-        print("New Categories (added within 30 days) Performance:")
-        print(new_category_impact[['L1_Category', 'L2_Category', 'Precision', 'Total_Flagged']].round(3))
+        # Find categories that only appear in recent months
+        category_monthly_presence = df.groupby(['Prosodica L1', 'Prosodica L2'])['Year_Month'].nunique().reset_index()
+        category_monthly_presence.columns = ['L1_Category', 'L2_Category', 'Months_Present']
         
-        avg_new_precision = new_category_impact['Precision'].mean()
-        avg_overall_precision = category_impact['Precision'].mean()
-        print(f"Average new category precision: {avg_new_precision:.3f}")
-        print(f"Average overall precision: {avg_overall_precision:.3f}")
+        # Categories present in 2 or fewer months could be considered "new"
+        potential_new_categories = category_monthly_presence[category_monthly_presence['Months_Present'] <= 2]
         
-        if avg_new_precision < avg_overall_precision - 0.1:
-            print("  FINDING: New categories have significantly lower precision")
+        if len(potential_new_categories) > 0:
+            print("Potentially New Categories (present in ≤2 months):")
+            
+            new_category_performance = []
+            for _, cat in potential_new_categories.iterrows():
+                cat_data = df[(df['Prosodica L1'] == cat['L1_Category']) & 
+                             (df['Prosodica L2'] == cat['L2_Category'])]
+                
+                if len(cat_data) > 0:
+                    precision = cat_data['Is_TP'].sum() / len(cat_data)
+                    volume = len(cat_data)
+                    
+                    new_category_performance.append({
+                        'L1_Category': cat['L1_Category'],
+                        'L2_Category': cat['L2_Category'],
+                        'Precision': precision,
+                        'Volume': volume,
+                        'Months_Present': cat['Months_Present']
+                    })
+            
+            if new_category_performance:
+                new_perf_df = pd.DataFrame(new_category_performance)
+                print(new_perf_df[['L1_Category', 'L2_Category', 'Precision', 'Volume', 'Months_Present']].round(3))
+                
+                avg_new_precision = new_perf_df['Precision'].mean()
+                avg_overall_precision = category_impact['Precision'].mean()
+                print(f"Average new category precision: {avg_new_precision:.3f}")
+                print(f"Average overall precision: {avg_overall_precision:.3f}")
+                
+                if avg_new_precision < avg_overall_precision - 0.1:
+                    print("  FINDING: Potentially new categories have significantly lower precision")
+                else:
+                    print("  FINDING: Potentially new categories perform similarly to existing ones")
+        else:
+            print("No potentially new categories detected (all categories present in 3+ months)")
     else:
-        print("No new categories detected in the analysis period")
+        print("Insufficient historical data to identify new categories")
     
     return monthly_category_precision, category_impact
 
@@ -1149,27 +1166,51 @@ def cross_category_analysis(df):
     
     print("\n2.3 New Category Cannibalization Analysis")
     
-    # Analyze impact of new categories on existing ones
-    new_categories = df[df['Is_New_Category']]['Prosodica L2'].unique()
+    # Alternative approach: Analyze volume trends to identify potential new categories
+    monthly_category_volumes = df.groupby(['Year_Month', 'Prosodica L2']).size().reset_index()
+    monthly_category_volumes.columns = ['Year_Month', 'L2_Category', 'Volume']
     
-    if len(new_categories) > 0:
-        print(f"New Categories: {list(new_categories)}")
+    # Find categories with recent volume spikes (potential new categories)
+    category_volume_trends = monthly_category_volumes.groupby('L2_Category').agg({
+        'Volume': ['sum', 'count', 'std']
+    }).reset_index()
+    
+    category_volume_trends.columns = ['L2_Category', 'Total_Volume', 'Months_Active', 'Volume_Std']
+    
+    # Categories active in fewer months might be newer
+    potential_new_cats = category_volume_trends[
+        (category_volume_trends['Months_Active'] <= 2) & 
+        (category_volume_trends['Total_Volume'] >= 10)
+    ]
+    
+    if len(potential_new_cats) > 0:
+        print(f"Potential New Categories (active ≤2 months, volume ≥10):")
         
-        for new_cat in new_categories:
-            # Performance of new category
-            new_cat_data = df[df['Prosodica L2'] == new_cat]
-            new_cat_precision = new_cat_data['Is_TP'].mean()
-            new_cat_volume = len(new_cat_data)
+        for _, cat in potential_new_cats.iterrows():
+            cat_name = cat['L2_Category']
             
-            print(f"\n{new_cat}:")
-            print(f"  Volume: {new_cat_volume}")
-            print(f"  Precision: {new_cat_precision:.3f}")
+            # Performance of potential new category
+            cat_data = df[df['Prosodica L2'] == cat_name]
+            cat_precision = cat_data['Is_TP'].mean() if len(cat_data) > 0 else 0
+            cat_volume = len(cat_data)
             
-            # Check if similar existing categories lost volume
-            # (This would require more sophisticated semantic similarity analysis)
-            print(f"  Cannibalization analysis: Requires semantic similarity comparison")
+            print(f"\n{cat_name}:")
+            print(f"  Volume: {cat_volume}")
+            print(f"  Precision: {cat_precision:.3f}")
+            print(f"  Months Active: {cat['Months_Active']}")
+            
+            # Check monthly trend
+            cat_monthly = monthly_category_volumes[monthly_category_volumes['L2_Category'] == cat_name]
+            if len(cat_monthly) > 1:
+                cat_monthly = cat_monthly.sort_values('Year_Month')
+                trend = "Increasing" if cat_monthly['Volume'].iloc[-1] > cat_monthly['Volume'].iloc[0] else "Stable/Decreasing"
+                print(f"  Volume Trend: {trend}")
+        
+        print(f"\n  NOTE: Manual review needed to confirm if these are truly new categories")
+        print(f"  RECOMMENDATION: Compare with category launch dates if available")
     else:
-        print("No new categories identified for cannibalization analysis")
+        print("No clear patterns suggesting new category launches")
+        print("All categories appear to have consistent historical presence")
     
     return transcript_categories, multi_category
 
