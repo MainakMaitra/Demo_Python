@@ -1,4 +1,4 @@
-# Structured Complaints Precision Drop Analysis - Banking Domain
+# Structured Complaints Precision Drop Analysis
 # Investigation Framework Following Systematic Approach
 
 import pandas as pd
@@ -46,36 +46,14 @@ def load_and_prepare_data():
         df_main = pd.read_excel('Precision_Drop_Analysis_OG.xlsx')
         print(f"Main dataset loaded: {df_main.shape}")
     except FileNotFoundError:
-        print("Warning: Main dataset file not found. Creating sample data for demonstration.")
-        np.random.seed(42)
-        dates = pd.date_range('2024-10-01', '2025-03-31', freq='D')
-        sample_size = 5000
-        
-        df_main = pd.DataFrame({
-            'variable5': np.random.choice(list(range(1000, 2000)), sample_size),
-            'UUID': list(range(sample_size)),
-            'Customer Transcript': [f"Sample customer complaint text {i} not satisfied with service" if i % 3 == 0 
-                                  else f"Sample customer inquiry {i} about account balance" 
-                                  for i in range(sample_size)],
-            'Agent Transcript': [f"Let me explain the process {i} for your complaint" if i % 4 == 0 
-                               else f"I understand your concern {i}" 
-                               for i in range(sample_size)],
-            'Prosodica L1': np.random.choice(['complaints', 'inquiries', 'requests'], sample_size, p=[0.4, 0.35, 0.25]),
-            'Prosodica L2': np.random.choice(['fee_waiver', 'credit_limit', 'payment_issue', 'account_inquiry', 'billing_dispute'], sample_size),
-            'Primary L1': np.random.choice(['complaints', 'inquiries', 'requests'], sample_size, p=[0.4, 0.35, 0.25]),
-            'Primary L2': np.random.choice(['fee_waiver', 'credit_limit', 'payment_issue', 'account_inquiry', 'billing_dispute'], sample_size),
-            'Primary Marker': np.random.choice(['TP', 'FP'], sample_size, p=[0.65, 0.35]),
-            'Secondary Marker': np.random.choice(['TP', 'FP', None], sample_size, p=[0.3, 0.15, 0.55]),
-            'Date': np.random.choice(dates, sample_size)
-        })
+        print("Warning: Main dataset file not found.")
     
     # Load validation summary
     try:
         df_validation = pd.read_excel('Categorical Validation.xlsx', sheet_name='Summary validation vol')
         print(f"Validation summary loaded: {df_validation.shape}")
     except FileNotFoundError:
-        print("Warning: Validation file not found. Creating sample validation data.")
-        df_validation = pd.DataFrame()
+        print("Warning: Validation file not found.")
     
     # Load query rules
     try:
@@ -83,17 +61,7 @@ def load_and_prepare_data():
         df_rules_filtered = df_rules[df_rules['Category'].isin(['complaints', 'collection_complaints'])].copy()
         print(f"Query rules loaded and filtered: {df_rules_filtered.shape}")
     except FileNotFoundError:
-        print("Warning: Query rules file not found. Creating sample rules data.")
-        df_rules_filtered = pd.DataFrame({
-            'Category': ['complaints'] * 15,
-            'Event': ['complaints'] * 15,
-            'Query': [f'query_{i}' for i in range(15)],
-            'Query Text': [f'(complaint OR complain OR issue) AND (fee OR billing OR charge)' if i % 3 == 0
-                          else f'(upset OR angry OR frustrated) NEAR:5 (service OR support)' if i % 3 == 1
-                          else f'(problem OR trouble) AND NOT (thank OR thanks)' 
-                          for i in range(15)],
-            'Channel': np.random.choice(['customer', 'agent', 'both'], 15)
-        })
+        print("Warning: Query rules file not found.") 
     
     # Enhanced data preprocessing
     df_main['Date'] = pd.to_datetime(df_main['Date'])
@@ -139,6 +107,44 @@ def load_and_prepare_data():
         (df_main['Primary Marker'] == df_main['Secondary Marker']).astype(int),
         np.nan
     )
+    
+    # Category metadata using Query Rules begin_date
+    # Create category-date mapping from Query Rules
+    if 'begin_date' in df_rules_filtered.columns:
+        # Process begin_date from rules
+        df_rules_filtered['begin_date'] = pd.to_datetime(df_rules_filtered['begin_date'], errors='coerce')
+        
+        # Create mapping of (Event, Query) -> begin_date
+        category_date_mapping = df_rules_filtered.groupby(['Event', 'Query'])['begin_date'].min().to_dict()
+        
+        # Apply mapping to main dataframe
+        df_main['Category_Added_Date'] = df_main.apply(
+            lambda row: category_date_mapping.get((row['Prosodica L1'], row['Prosodica L2']), pd.NaT), 
+            axis=1
+        )
+        
+        # Convert to datetime and handle NaT values
+        df_main['Category_Added_Date'] = pd.to_datetime(df_main['Category_Added_Date'])
+        
+        # For categories without begin_date, use a default early date
+        default_date = pd.to_datetime('2024-01-01')
+        df_main['Category_Added_Date'] = df_main['Category_Added_Date'].fillna(default_date)
+        
+        # Calculate category age and new category flag
+        df_main['Category_Age_Days'] = (df_main['Date'] - df_main['Category_Added_Date']).dt.days
+        df_main['Is_New_Category'] = df_main['Category_Age_Days'] <= 30
+        
+        print(f"Category date mapping applied successfully.")
+        print(f"Categories with begin_date: {len(category_date_mapping)}")
+        print(f"Records flagged as new categories: {df_main['Is_New_Category'].sum()}")
+        
+    else:
+        print("Warning: begin_date column not found in Query Rules. Using default category dating.")
+        # Fallback: use default early date for all categories
+        default_date = pd.to_datetime('2024-01-01')
+        df_main['Category_Added_Date'] = default_date
+        df_main['Category_Age_Days'] = (df_main['Date'] - df_main['Category_Added_Date']).dt.days
+        df_main['Is_New_Category'] = False  # All categories considered old
     
     print(f"Data preparation completed. Final dataset shape: {df_main.shape}")
     
@@ -239,60 +245,40 @@ def analyze_precision_drop_patterns(df):
     
     print("\n1.4 New Categories Analysis")
     
-    # Alternative approach: Check for categories with limited historical data
-    # Categories appearing in only recent months could be considered "new"
-    all_months = sorted(df['Year_Month'].unique())
-    if len(all_months) >= 3:
-        recent_months = all_months[-2:]  # Last 2 months
+    # Check for recently added categories using the Is_New_Category flag
+    new_category_impact = df[df['Is_New_Category']].groupby(['Prosodica L1', 'Prosodica L2']).agg({
+        'Is_TP': ['sum', 'count'],
+        'Is_FP': 'sum'
+    }).reset_index()
+    
+    if len(new_category_impact) > 0:
+        new_category_impact.columns = ['L1_Category', 'L2_Category', 'TPs', 'Total_Flagged', 'FPs']
+        new_category_impact['Precision'] = np.where(
+            new_category_impact['Total_Flagged'] > 0,
+            new_category_impact['TPs'] / new_category_impact['Total_Flagged'],
+            0
+        )
         
-        # Find categories that only appear in recent months
-        category_monthly_presence = df.groupby(['Prosodica L1', 'Prosodica L2'])['Year_Month'].nunique().reset_index()
-        category_monthly_presence.columns = ['L1_Category', 'L2_Category', 'Months_Present']
+        print("New Categories (added within 30 days) Performance:")
+        print(new_category_impact[['L1_Category', 'L2_Category', 'Precision', 'Total_Flagged']].round(3))
         
-        # Categories present in 2 or fewer months could be considered "new"
-        potential_new_categories = category_monthly_presence[category_monthly_presence['Months_Present'] <= 2]
+        avg_new_precision = new_category_impact['Precision'].mean()
+        avg_overall_precision = category_impact['Precision'].mean()
+        print(f"Average new category precision: {avg_new_precision:.3f}")
+        print(f"Average overall precision: {avg_overall_precision:.3f}")
         
-        if len(potential_new_categories) > 0:
-            print("Potentially New Categories (present in ≤2 months):")
-            
-            new_category_performance = []
-            for _, cat in potential_new_categories.iterrows():
-                cat_data = df[(df['Prosodica L1'] == cat['L1_Category']) & 
-                             (df['Prosodica L2'] == cat['L2_Category'])]
-                
-                if len(cat_data) > 0:
-                    precision = cat_data['Is_TP'].sum() / len(cat_data)
-                    volume = len(cat_data)
-                    
-                    new_category_performance.append({
-                        'L1_Category': cat['L1_Category'],
-                        'L2_Category': cat['L2_Category'],
-                        'Precision': precision,
-                        'Volume': volume,
-                        'Months_Present': cat['Months_Present']
-                    })
-            
-            if new_category_performance:
-                new_perf_df = pd.DataFrame(new_category_performance)
-                print(new_perf_df[['L1_Category', 'L2_Category', 'Precision', 'Volume', 'Months_Present']].round(3))
-                
-                avg_new_precision = new_perf_df['Precision'].mean()
-                avg_overall_precision = category_impact['Precision'].mean()
-                print(f"Average new category precision: {avg_new_precision:.3f}")
-                print(f"Average overall precision: {avg_overall_precision:.3f}")
-                
-                if avg_new_precision < avg_overall_precision - 0.1:
-                    print("  FINDING: Potentially new categories have significantly lower precision")
-                else:
-                    print("  FINDING: Potentially new categories perform similarly to existing ones")
+        if avg_new_precision < avg_overall_precision - 0.1:
+            print("  FINDING: New categories have significantly lower precision")
         else:
-            print("No potentially new categories detected (all categories present in 3+ months)")
+            print("  FINDING: New categories perform similarly to existing categories")
     else:
-        print("Insufficient historical data to identify new categories")
+        print("No new categories detected in the analysis period")
+        print("(All categories were added more than 30 days before the call dates)")
     
     return monthly_category_precision, category_impact
 
 monthly_precision, category_performance = analyze_precision_drop_patterns(df_main)
+
 
 # 2. VOLUME VS PERFORMANCE ANALYSIS
 print("\n2. VOLUME VS PERFORMANCE ANALYSIS")
@@ -405,6 +391,7 @@ def analyze_volume_vs_performance(df):
 
 volume_analysis, monthly_analysis = analyze_volume_vs_performance(df_main)
 
+
 # 3. QUERY PERFORMANCE REVIEW
 print("\n3. QUERY PERFORMANCE REVIEW")
 print("-" * 40)
@@ -477,20 +464,34 @@ def pattern_detection_analysis(df):
     print("4.1 Problem vs Non-Problem Months Comparison")
     
     # Define problem months (assuming recent months have issues)
-    all_months = sorted(df['Year_Month'].unique())
+    # FIXED: Handle mixed data types in Year_Month column
+    unique_months = df['Year_Month'].dropna().unique()
+    
+    # Convert to strings and filter out any remaining NaN/None values
+    valid_months = []
+    for month in unique_months:
+        if pd.notna(month) and month is not None:
+            valid_months.append(str(month))
+    
+    # Sort the valid months
+    all_months = sorted(valid_months)
+    
     if len(all_months) >= 4:
         problem_months = all_months[-2:]  # Last 2 months
         normal_months = all_months[:-2]   # Earlier months
+    elif len(all_months) >= 2:
+        problem_months = all_months[-1:]  # Last 1 month
+        normal_months = all_months[:-1]   # Earlier months
     else:
-        problem_months = all_months[-1:]
-        normal_months = all_months[:-1]
+        print("Insufficient months for comparison")
+        return pd.DataFrame(), pd.DataFrame()
     
     print(f"Problem months: {problem_months}")
     print(f"Normal months: {normal_months}")
     
     # Compare performance
-    problem_data = df[df['Year_Month'].isin(problem_months)]
-    normal_data = df[df['Year_Month'].isin(normal_months)]
+    problem_data = df[df['Year_Month'].astype(str).isin(problem_months)]
+    normal_data = df[df['Year_Month'].astype(str).isin(normal_months)]
     
     comparison = pd.DataFrame({
         'Period': ['Normal', 'Problem'],
@@ -532,13 +533,16 @@ def pattern_detection_analysis(df):
     
     print("\n4.2 Sudden vs Gradual Drop Analysis")
     
-    # Monthly precision trend
+    # Monthly precision trend - ALSO FIXED
     monthly_precision = df.groupby('Year_Month').agg({
         'Is_TP': ['sum', 'count']
     }).reset_index()
     
     monthly_precision.columns = ['Year_Month', 'TPs', 'Total']
     monthly_precision['Precision'] = monthly_precision['TPs'] / monthly_precision['Total']
+    
+    # Convert Year_Month to string for consistent sorting
+    monthly_precision['Year_Month'] = monthly_precision['Year_Month'].astype(str)
     monthly_precision = monthly_precision.sort_values('Year_Month')
     monthly_precision['Precision_Change'] = monthly_precision['Precision'].diff()
     
@@ -940,6 +944,7 @@ def category_specific_investigation(df, df_rules, top_categories):
     
     # Get top 5 worst performing categories
     if len(top_categories) > 0:
+        # FIX: Use the correct variable name that matches the parameter
         top_5_worst = top_categories.head(5)
         
         print("Top 5 Categories with Worst Precision Drop:")
@@ -990,36 +995,40 @@ def category_specific_investigation(df, df_rules, top_categories):
     # Check if same rules are catching more FPs over time
     monthly_rule_performance = {}
     
-    for _, category in top_5_worst.iterrows():
-        l2_cat = category['L2_Category']
+    # FIX: Make sure we have the top_5_worst variable defined
+    if len(top_categories) > 0:
+        top_5_worst = top_categories.head(5)
         
-        # Monthly FP analysis for this category
-        category_monthly = df[df['Prosodica L2'] == l2_cat].groupby('Year_Month').agg({
-            'Is_FP': ['sum', 'count'],
-            'Is_TP': 'sum'
-        }).reset_index()
-        
-        if len(category_monthly) > 0:
-            category_monthly.columns = ['Year_Month', 'FP_Count', 'Total_Flagged', 'TP_Count']
-            category_monthly['FP_Rate'] = category_monthly['FP_Count'] / category_monthly['Total_Flagged']
-            category_monthly = category_monthly.sort_values('Year_Month')
+        for _, category in top_5_worst.iterrows():
+            l2_cat = category['L2_Category']
             
-            # Check for degradation trend
-            if len(category_monthly) > 2:
-                months = list(range(len(category_monthly)))
-                fp_rates = category_monthly['FP_Rate'].tolist()
+            # Monthly FP analysis for this category
+            category_monthly = df[df['Prosodica L2'] == l2_cat].groupby('Year_Month').agg({
+                'Is_FP': ['sum', 'count'],
+                'Is_TP': 'sum'
+            }).reset_index()
+            
+            if len(category_monthly) > 0:
+                category_monthly.columns = ['Year_Month', 'FP_Count', 'Total_Flagged', 'TP_Count']
+                category_monthly['FP_Rate'] = category_monthly['FP_Count'] / category_monthly['Total_Flagged']
+                category_monthly = category_monthly.sort_values('Year_Month')
                 
-                try:
-                    slope, _, r_value, p_value, _ = stats.linregress(months, fp_rates)
+                # Check for degradation trend
+                if len(category_monthly) > 2:
+                    months = list(range(len(category_monthly)))
+                    fp_rates = category_monthly['FP_Rate'].tolist()
                     
-                    monthly_rule_performance[l2_cat] = {
-                        'slope': slope,
-                        'r_squared': r_value**2,
-                        'p_value': p_value,
-                        'trend': 'Degrading' if slope > 0.01 else 'Stable'
-                    }
-                except:
-                    monthly_rule_performance[l2_cat] = {'trend': 'Unable to calculate'}
+                    try:
+                        slope, _, r_value, p_value, _ = stats.linregress(months, fp_rates)
+                        
+                        monthly_rule_performance[l2_cat] = {
+                            'slope': slope,
+                            'r_squared': r_value**2,
+                            'p_value': p_value,
+                            'trend': 'Degrading' if slope > 0.01 else 'Stable'
+                        }
+                    except:
+                        monthly_rule_performance[l2_cat] = {'trend': 'Unable to calculate'}
     
     print("Rule Degradation Analysis:")
     for category, performance in monthly_rule_performance.items():
@@ -1044,36 +1053,40 @@ def category_specific_investigation(df, df_rules, top_categories):
     
     language_evolution = {}
     
-    for _, category in top_5_worst.iterrows():
-        l2_cat = category['L2_Category']
+    # FIX: Again ensure top_5_worst is defined
+    if len(top_categories) > 0:
+        top_5_worst = top_categories.head(5)
         
-        early_data = df[(df['Prosodica L2'] == l2_cat) & (df['Year_Month'].isin(early_months))]
-        recent_data = df[(df['Prosodica L2'] == l2_cat) & (df['Year_Month'].isin(recent_months))]
-        
-        if len(early_data) > 0 and len(recent_data) > 0:
-            # Vocabulary analysis
-            early_vocab = set(' '.join(early_data['Customer Transcript'].fillna('')).lower().split())
-            recent_vocab = set(' '.join(recent_data['Customer Transcript'].fillna('')).lower().split())
+        for _, category in top_5_worst.iterrows():
+            l2_cat = category['L2_Category']
             
-            new_words = recent_vocab - early_vocab
-            vocab_growth = len(new_words) / len(early_vocab) if len(early_vocab) > 0 else 0
+            early_data = df[(df['Prosodica L2'] == l2_cat) & (df['Year_Month'].isin(early_months))]
+            recent_data = df[(df['Prosodica L2'] == l2_cat) & (df['Year_Month'].isin(recent_months))]
             
-            # Text characteristics
-            early_avg_length = early_data['Transcript_Length'].mean()
-            recent_avg_length = recent_data['Transcript_Length'].mean()
-            length_change = (recent_avg_length - early_avg_length) / early_avg_length if early_avg_length > 0 else 0
-            
-            # Qualifying language change
-            early_qualifying = early_data['Customer_Qualifying_Count'].mean()
-            recent_qualifying = recent_data['Customer_Qualifying_Count'].mean()
-            qualifying_change = recent_qualifying - early_qualifying
-            
-            language_evolution[l2_cat] = {
-                'vocab_growth': vocab_growth,
-                'length_change': length_change,
-                'qualifying_change': qualifying_change,
-                'new_words_count': len(new_words)
-            }
+            if len(early_data) > 0 and len(recent_data) > 0:
+                # Vocabulary analysis
+                early_vocab = set(' '.join(early_data['Customer Transcript'].fillna('')).lower().split())
+                recent_vocab = set(' '.join(recent_data['Customer Transcript'].fillna('')).lower().split())
+                
+                new_words = recent_vocab - early_vocab
+                vocab_growth = len(new_words) / len(early_vocab) if len(early_vocab) > 0 else 0
+                
+                # Text characteristics
+                early_avg_length = early_data['Transcript_Length'].mean()
+                recent_avg_length = recent_data['Transcript_Length'].mean()
+                length_change = (recent_avg_length - early_avg_length) / early_avg_length if early_avg_length > 0 else 0
+                
+                # Qualifying language change
+                early_qualifying = early_data['Customer_Qualifying_Count'].mean()
+                recent_qualifying = recent_data['Customer_Qualifying_Count'].mean()
+                qualifying_change = recent_qualifying - early_qualifying
+                
+                language_evolution[l2_cat] = {
+                    'vocab_growth': vocab_growth,
+                    'length_change': length_change,
+                    'qualifying_change': qualifying_change,
+                    'new_words_count': len(new_words)
+                }
     
     print("Language Evolution Analysis:")
     for category, evolution in language_evolution.items():
@@ -1166,51 +1179,27 @@ def cross_category_analysis(df):
     
     print("\n2.3 New Category Cannibalization Analysis")
     
-    # Alternative approach: Analyze volume trends to identify potential new categories
-    monthly_category_volumes = df.groupby(['Year_Month', 'Prosodica L2']).size().reset_index()
-    monthly_category_volumes.columns = ['Year_Month', 'L2_Category', 'Volume']
+    # Analyze impact of new categories on existing ones
+    new_categories = df[df['Is_New_Category']]['Prosodica L2'].unique()
     
-    # Find categories with recent volume spikes (potential new categories)
-    category_volume_trends = monthly_category_volumes.groupby('L2_Category').agg({
-        'Volume': ['sum', 'count', 'std']
-    }).reset_index()
-    
-    category_volume_trends.columns = ['L2_Category', 'Total_Volume', 'Months_Active', 'Volume_Std']
-    
-    # Categories active in fewer months might be newer
-    potential_new_cats = category_volume_trends[
-        (category_volume_trends['Months_Active'] <= 2) & 
-        (category_volume_trends['Total_Volume'] >= 10)
-    ]
-    
-    if len(potential_new_cats) > 0:
-        print(f"Potential New Categories (active ≤2 months, volume ≥10):")
+    if len(new_categories) > 0:
+        print(f"New Categories: {list(new_categories)}")
         
-        for _, cat in potential_new_cats.iterrows():
-            cat_name = cat['L2_Category']
+        for new_cat in new_categories:
+            # Performance of new category
+            new_cat_data = df[df['Prosodica L2'] == new_cat]
+            new_cat_precision = new_cat_data['Is_TP'].mean()
+            new_cat_volume = len(new_cat_data)
             
-            # Performance of potential new category
-            cat_data = df[df['Prosodica L2'] == cat_name]
-            cat_precision = cat_data['Is_TP'].mean() if len(cat_data) > 0 else 0
-            cat_volume = len(cat_data)
+            print(f"\n{new_cat}:")
+            print(f"  Volume: {new_cat_volume}")
+            print(f"  Precision: {new_cat_precision:.3f}")
             
-            print(f"\n{cat_name}:")
-            print(f"  Volume: {cat_volume}")
-            print(f"  Precision: {cat_precision:.3f}")
-            print(f"  Months Active: {cat['Months_Active']}")
-            
-            # Check monthly trend
-            cat_monthly = monthly_category_volumes[monthly_category_volumes['L2_Category'] == cat_name]
-            if len(cat_monthly) > 1:
-                cat_monthly = cat_monthly.sort_values('Year_Month')
-                trend = "Increasing" if cat_monthly['Volume'].iloc[-1] > cat_monthly['Volume'].iloc[0] else "Stable/Decreasing"
-                print(f"  Volume Trend: {trend}")
-        
-        print(f"\n  NOTE: Manual review needed to confirm if these are truly new categories")
-        print(f"  RECOMMENDATION: Compare with category launch dates if available")
+            # Check if similar existing categories lost volume
+            # (This would require more sophisticated semantic similarity analysis)
+            print(f"  Cannibalization analysis: Requires semantic similarity comparison")
     else:
-        print("No clear patterns suggesting new category launches")
-        print("All categories appear to have consistent historical presence")
+        print("No new categories identified for cannibalization analysis")
     
     return transcript_categories, multi_category
 
@@ -1398,45 +1387,79 @@ def generate_comprehensive_findings_and_recommendations():
     print("\n1. KEY FINDINGS SUMMARY")
     print("-" * 30)
     
-    # Overall metrics
+    # Overall metrics with zero-division protection
     overall_precision = df_main['Is_TP'].mean()
     total_records = len(df_main)
-    categories_below_target = len(complaint_performance[complaint_performance['Precision'] < 0.70])
-    total_categories = len(complaint_performance)
+    
+    # FIX: Add protection against empty complaint_performance DataFrame
+    if len(complaint_performance) > 0:
+        categories_below_target = len(complaint_performance[complaint_performance['Precision'] < 0.70])
+        total_categories = len(complaint_performance)
+        category_percentage = categories_below_target/total_categories if total_categories > 0 else 0
+    else:
+        categories_below_target = 0
+        total_categories = 0
+        category_percentage = 0
     
     print(f"CURRENT STATE:")
     print(f"  Overall Precision: {overall_precision:.1%} (Target: 70%)")
     print(f"  Gap to Target: {0.70 - overall_precision:+.1%}")
-    print(f"  Categories Below Target: {categories_below_target}/{total_categories} ({categories_below_target/total_categories:.1%})")
+    
+    # FIX: Conditional formatting based on whether we have categories
+    if total_categories > 0:
+        print(f"  Categories Below Target: {categories_below_target}/{total_categories} ({category_percentage:.1%})")
+    else:
+        print(f"  Categories Below Target: No complaint categories found in data")
+    
     print(f"  Total Records Analyzed: {total_records:,}")
     
     # Top findings from each analysis area
     print(f"\nMAJOR FINDINGS BY ANALYSIS AREA:")
     
     print(f"\nMacro Level Analysis:")
-    if len(top_drop_drivers) > 0:
+    # FIX: Check if top_drop_drivers exists and has data
+    if 'top_drop_drivers' in globals() and len(top_drop_drivers) > 0:
         worst_category = top_drop_drivers.iloc[0]
         print(f"  - Worst performing category: {worst_category['L2_Category']} ({worst_category['Precision']:.1%} precision)")
+    else:
+        print(f"  - No specific worst performing category identified")
     
-    print(f"  - {period_comparison.loc[1, 'Precision'] - period_comparison.loc[0, 'Precision']:+.1%} precision change (normal → problem periods)")
+    # FIX: Check if period_comparison exists and has the expected structure
+    if 'period_comparison' in globals() and len(period_comparison) >= 2:
+        period_diff = period_comparison.loc[1, 'Precision'] - period_comparison.loc[0, 'Precision']
+        print(f"  - {period_diff:+.1%} precision change (normal → problem periods)")
+    else:
+        print(f"  - Period comparison data not available")
     
     print(f"\nDeep Dive Analysis:")
-    if len(fp_reasons) > 0:
+    # FIX: Check if fp_reasons exists and has data
+    if 'fp_reasons' in globals() and len(fp_reasons) > 0:
         top_fp_reason = fp_reasons.iloc[0]
         print(f"  - Primary FP cause: {top_fp_reason['FP_Reason']} ({top_fp_reason['Percentage']:.1f}% of FPs)")
+    else:
+        print(f"  - FP reason analysis not available")
     
-    if validation_monthly is not None and len(validation_monthly) > 0:
+    # FIX: Check validation_monthly exists and has data
+    if 'validation_monthly' in globals() and validation_monthly is not None and len(validation_monthly) > 0:
         avg_agreement = validation_monthly['Agreement_Rate'].mean()
         print(f"  - Validation agreement rate: {avg_agreement:.1%}")
+    else:
+        print(f"  - Validation data not available")
     
     print(f"\nRoot Cause Analysis:")
-    if len(rule_performance) > 0:
+    # FIX: Check if rule_performance exists and has data
+    if 'rule_performance' in globals() and len(rule_performance) > 0:
         degrading_rules = sum(1 for perf in rule_performance.values() if perf.get('trend') == 'Degrading')
         print(f"  - Rules showing degradation: {degrading_rules}/{len(rule_performance)}")
+    else:
+        print(f"  - Rule performance analysis not available")
     
-    if len(pattern_results) > 0:
+    # FIX: Check if pattern_results exists and has data
+    if 'pattern_results' in globals() and len(pattern_results) > 0:
         high_risk_patterns = len(pattern_results[pattern_results['Risk_Factor'] > 2])
         print(f"  - High-risk content patterns: {high_risk_patterns}")
+    else:
+        print(f"  - Pattern analysis not available")
     
     print(f"\n2. ROOT CAUSE PRIORITIZATION")
     print("-" * 35)
@@ -1444,9 +1467,11 @@ def generate_comprehensive_findings_and_recommendations():
     # Calculate impact scores for different root causes
     root_causes = []
     
+    # FIX: Add checks before accessing analysis results
     # Negation handling issues
-    if len(fp_reasons) > 0:
-        context_issues_pct = fp_reasons[fp_reasons['FP_Reason'] == 'Context Issues']['Percentage'].iloc[0] if len(fp_reasons[fp_reasons['FP_Reason'] == 'Context Issues']) > 0 else 0
+    if 'fp_reasons' in globals() and len(fp_reasons) > 0:
+        context_issues_data = fp_reasons[fp_reasons['FP_Reason'] == 'Context Issues']
+        context_issues_pct = context_issues_data['Percentage'].iloc[0] if len(context_issues_data) > 0 else 0
         root_causes.append({
             'Root_Cause': 'Context-insensitive negation handling',
             'Impact_Score': context_issues_pct,
@@ -1456,8 +1481,9 @@ def generate_comprehensive_findings_and_recommendations():
         })
     
     # Agent explanation issues
-    if len(fp_reasons) > 0:
-        confusion_pct = fp_reasons[fp_reasons['FP_Reason'] == 'Agent/Customer Confusion']['Percentage'].iloc[0] if len(fp_reasons[fp_reasons['FP_Reason'] == 'Agent/Customer Confusion']) > 0 else 0
+    if 'fp_reasons' in globals() and len(fp_reasons) > 0:
+        confusion_data = fp_reasons[fp_reasons['FP_Reason'] == 'Agent/Customer Confusion']
+        confusion_pct = confusion_data['Percentage'].iloc[0] if len(confusion_data) > 0 else 0
         root_causes.append({
             'Root_Cause': 'Agent explanations triggering rules',
             'Impact_Score': confusion_pct,
@@ -1467,8 +1493,9 @@ def generate_comprehensive_findings_and_recommendations():
         })
     
     # Overly broad rules
-    if len(fp_reasons) > 0:
-        broad_rules_pct = fp_reasons[fp_reasons['FP_Reason'] == 'Overly Broad Rules']['Percentage'].iloc[0] if len(fp_reasons[fp_reasons['FP_Reason'] == 'Overly Broad Rules']) > 0 else 0
+    if 'fp_reasons' in globals() and len(fp_reasons) > 0:
+        broad_rules_data = fp_reasons[fp_reasons['FP_Reason'] == 'Overly Broad Rules']
+        broad_rules_pct = broad_rules_data['Percentage'].iloc[0] if len(broad_rules_data) > 0 else 0
         root_causes.append({
             'Root_Cause': 'Overly broad query rules',
             'Impact_Score': broad_rules_pct,
@@ -1478,7 +1505,7 @@ def generate_comprehensive_findings_and_recommendations():
         })
     
     # Validation inconsistency
-    if validation_monthly is not None and len(validation_monthly) > 0:
+    if 'validation_monthly' in globals() and validation_monthly is not None and len(validation_monthly) > 0:
         avg_agreement = validation_monthly['Agreement_Rate'].mean()
         validation_impact = (1 - avg_agreement) * 100 if avg_agreement < 0.85 else 0
         root_causes.append({
@@ -1488,6 +1515,12 @@ def generate_comprehensive_findings_and_recommendations():
             'Time_to_Fix': '3-6 weeks',
             'Expected_Gain': min(0.05, validation_impact * 0.005)
         })
+    
+    # FIX: Handle case where no root causes were identified
+    if len(root_causes) == 0:
+        print("No specific root causes identified from available data")
+        print("Recommend manual investigation of data quality and analysis pipeline")
+        return pd.DataFrame()  # Return empty DataFrame
     
     # Sort by expected gain
     root_causes_df = pd.DataFrame(root_causes).sort_values('Expected_Gain', ascending=False)
@@ -1514,11 +1547,17 @@ def generate_comprehensive_findings_and_recommendations():
             print("   - Add agent explanation filter: AND NOT ((explain|example|suppose) NEAR:5 (complaint))")
         elif 'broad' in top_cause['Root_Cause'].lower():
             print("   - Review and reduce OR clauses in top 5 worst-performing queries")
+    else:
+        print("1. Conduct data quality assessment")
+        print("   - Verify data completeness and structure")
+        print("   - Validate analysis pipeline")
     
     print("2. Fix top 3 worst-performing categories:")
-    if len(top_drop_drivers) >= 3:
+    if 'top_drop_drivers' in globals() and len(top_drop_drivers) >= 3:
         for i, (_, category) in enumerate(top_drop_drivers.head(3).iterrows()):
             print(f"   - {category['L2_Category']}: Current {category['Precision']:.1%} → Target 70%")
+    else:
+        print("   - Category-specific improvements to be determined after data review")
     
     print("3. Implement daily monitoring dashboard")
     print("   - Real-time precision tracking")
@@ -1532,16 +1571,23 @@ def generate_comprehensive_findings_and_recommendations():
     print("   - Reduce query complexity for poor performers")
     
     print("2. Enhanced validation process:")
-    if validation_monthly is not None:
+    if 'validation_monthly' in globals() and validation_monthly is not None:
         print("   - Reviewer calibration sessions")
         print("   - Updated validation guidelines")
         print("   - Quality control sampling")
+    else:
+        print("   - Establish validation process framework")
+        print("   - Implement secondary validation sampling")
     
     print("3. Pattern-based improvements:")
-    if len(pattern_results) > 0:
+    if 'pattern_results' in globals() and len(pattern_results) > 0:
         high_risk = pattern_results[pattern_results['Risk_Factor'] > 2]
         if len(high_risk) > 0:
             print(f"   - Address high-risk patterns: {', '.join(high_risk['Pattern'].tolist())}")
+        else:
+            print("   - Develop pattern detection capabilities")
+    else:
+        print("   - Implement content pattern analysis")
     
     print(f"\nQUARTER 1 (STRATEGIC INITIATIVES):")
     print("1. Advanced analytics implementation:")
@@ -1567,6 +1613,12 @@ def generate_comprehensive_findings_and_recommendations():
         print(f"  Expected Gain: +{total_expected_gain:.1%}")
         print(f"  Target Precision: {final_precision:.1%}")
         print(f"  Target Achievement: {'YES' if final_precision >= 0.70 else 'PARTIAL'}")
+    else:
+        print(f"EXPECTED OUTCOMES:")
+        print(f"  Current Precision: {overall_precision:.1%}")
+        print(f"  Expected Gain: To be determined after data review")
+        print(f"  Target Precision: 70%")
+        print(f"  Target Achievement: Requires further analysis")
     
     print(f"\nKEY PERFORMANCE INDICATORS:")
     print(f"  Primary: Overall precision ≥ 70%")
