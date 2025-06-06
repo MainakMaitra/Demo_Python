@@ -1,7 +1,3 @@
-# Enhanced Complaints Precision Drop Analysis - Banking Domain
-# Synchrony Use Case - Root Cause Investigation
-# Enhanced version with additional analysis techniques
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
