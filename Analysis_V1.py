@@ -1,5 +1,3 @@
-Here’s a simplified explanation capturing the **full essence** of the Prosodica Query Management guide:
-
 # =============================================================================
 # ENHANCED VISUALIZATION FRAMEWORK FOR COMPLEX QUERIES
 # =============================================================================
