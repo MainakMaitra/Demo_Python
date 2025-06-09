@@ -1,411 +1,874 @@
-# Holistic Precision Drop Analysis - Insights
-
-## Executive Summary
-**Current State**: 74.8% overall precision (4.8% above 70% target but declining)  
-**Critical Finding**: 96.7% of False Positives stem from context-insensitive rule processing  
-**Business Impact**: $2.4M annual cost in false escalations with systematic erosion across 37/158 categories  
-**Strategic Priority**: Immediate technical intervention combined with operational standardization required
-
-**Key Performance vs Targets**:
-- **Primary**: Overall precision ≥ 70% (currently 74.8%  **EXCEEDING TARGET**)
-- **Secondary**: All categories ≥ 60% precision (**FAILING** - 37/158 categories below 70%)
-- **Tertiary**: Validation agreement ≥ 85% (currently 83.6% **SLIGHTLY BELOW TARGET**)
-
----
-
-## 1. Critical Priority Insights **IMMEDIATE ACTION REQUIRED**
-
-### 1.1 Context-Insensitive Negation Handling **CRITICAL**
-**Source**: FP Reason Categorization (Section 1.4)  
-**Impact**: 96.7% of all FPs (701/725 records)  
-**Financial Impact**: $2.4M annual cost assuming $100 per false escalation
-
-**Evidence**:
-```
-Negation Pattern Analysis:
-- True Positives: 11.789 negations/transcript (customers expressing frustration)
-- False Positives: 6.233 negations/transcript (customers denying complaints)
-- Risk Factor: 0.529 (FPs have fewer negations, indicating missed context)
-```
-
-**Root Cause**: Rules trigger on complaint keywords without understanding negation context  
-**Example Pattern**: "I'm NOT complaining, but..." triggers complaint detection
-
-**Immediate Actions**:
-1. Implement universal negation template:
-   ```
-   (original_query) AND NOT ((not|no|never|don't|won't) NEAR:3 (complain|complaint|issue|problem))
-   ```
-2. Add context window expansion:
-   ```
-   (complaint_terms) NOT WITHIN:10 (negation_patterns)
-   ```
-3. Deploy to top 5 worst-performing categories first
-
-**Expected Impact**: +15-20% precision improvement  
-**Implementation Effort**: Medium  
-**Success Metric**: Reduce context issues from 96.7% to <60% of FPs
-
----
-
-### 1.2 Agent Explanation Contamination **HIGH PRIORITY**
-**Source**: FP Pattern Analysis (Section 1.3)  
-**Impact**: 58.5% of all FPs (424/725 records)
-
-**Evidence by Category**:
-```
-Agent Explanation Contamination Rates:
-- Fees & Interest: 75.0% (highest contamination)
-- Billing Disputes: 66.2% 
-- Customer Relations: 54.9%
-- Overall Average: 58.5%
-```
-
-**Root Cause**: Agent hypothetical scenarios trigger complaint detection  
-**Example**: Agent says "If you were to complain about fees..." → System flags as complaint
-
-**Immediate Actions**:
-1. Implement speaker role detection
-2. Add agent explanation filters:
-   ```
-   AND NOT ((explain|example|suppose|hypothetically|let's say) NEAR:5 (complaint|issue))
-   ```
-3. Channel-specific rule optimization (focus on "customer" channel only)
-
-**Expected Impact**: +8-12% precision improvement  
-**Implementation Effort**: Low  
-**Success Metric**: Reduce agent contamination to <30% of FPs
-
----
-
-### 1.3 Emergency Category Review **URGENT**
-**Source**: Category Performance Analysis + Query Complexity Issues  
-**Impact**: 3 categories critically below target with severe degradation trends
-
-**Critical Categories with Severe MoM Drops**:
-```
-1. Credit Card ATM "unclassified": 39.6% precision (48 flagged) - EMERGENCY
-2. Credit Card ATM "rejected/declined": 47.3% precision + -88.2% MoM drop (Feb 2025)
-3. Customer Relations "close account": 56.2% precision + -38.6% MoM drop (Mar 2025)
-```
-
-**Specific Category Actions**:
-- **Customer Relations - Close Account** (22.4 impact score):
-  - Add context filters for retention discussions
-  - Distinguish between complaint and service request
-- **Credit Card ATM - Unclassified** (14.6 impact score):
-  - Improve classification specificity
-  - Add equipment vs service distinction
-- **Credit Card ATM - Rejected/Declined** (12.5 impact score):
-  - Separate technical issues from complaints
-  - Add merchant vs bank responsibility filters
-
-**Immediate Actions**:
-1. Emergency rule audit for "unclassified" category
-2. Implement category-specific negation rules
-3. Create focused validation samples (100 records each)
-4. Deploy revised rules with A/B testing
-5. Audit query complexity and reduce OR clause complexity
-
-**Expected Impact**: +25-30% precision for these categories  
-**Implementation Effort**: High (immediate resources required)  
-**Success Metric**: All categories >60% precision
-
----
-
-### 1.4 December 2024 Validation Investigation **PROCESS CRITICAL**
-**Source**: Validation Process Assessment + Validation Enhancement Analysis  
-**Impact**: 10.9% validation agreement drop (86.7% → 75.8%) affecting process credibility
-
-**Evidence of Validation Breakdown**:
-```
-Monthly Validation Agreement Trends:
-- October 2024: 86.7% agreement (83 samples)
-- November 2024: 86.0% agreement (107 samples)
-- December 2024: 75.8% agreement (128 samples) ← Problem month
-- January 2025: 85.0% agreement (127 samples)
-- February 2025: 82.4% agreement (136 samples)
-
-Categories with Critical Agreement Issues:
-- Customer Relations "action not taken": 50.0% agreement (8 samples)
-- EService "login and registration": 58.3% agreement (12 samples)
-- Payments "missing precisely didn't go through": 60.0% agreement (5 samples)
-```
-
-**Enhanced Validation Metrics**:
-- Records with secondary validation: 722 out of 2,877 (25.1%)
-- Primary-Secondary agreement rate: 83.2%
-
-**Immediate Actions**:
-1. Interview December 2024 validation team
-2. Recalibrate all validators using December samples
-3. Implement validation consistency monitoring
-4. Create validation agreement alerts (>10% drop triggers review)
-5. Increase secondary validation to 30% for problem categories
-6. Implement consensus validation for disagreement cases
-7. Develop automated validation quality scoring
-
-**Expected Impact**: Restore 85%+ validation agreement  
-**Implementation Effort**: Medium  
-**Success Metric**: Monthly validation agreement >85% sustained
-
----
-
-## 2. High Priority Insights
-
-### 2.1 Volume-Performance Anti-Correlation Management
-**Source**: Volume vs Performance Analysis  
-**Evidence**: -0.135 correlation (high volume = lower precision)
-
-**High-Volume Low-Precision Priority Matrix**:
-```
-Volume × Precision Gap Impact Analysis:
-- Customer Relations "close account": 162 vol × 13.8% gap = 22.4 impact
-- Credit Card ATM "unclassified": 48 vol × 30.4% gap = 14.6 impact
-- Credit Card ATM "rejected/declined": 55 vol × 22.7% gap = 12.5 impact
-- Fraud "general dissatisfaction": 147 vol × 6.7% gap = 9.9 impact
-- Credit Card ATM "travel notification": 98 vol × 9.8% gap = 9.6 impact
-```
-
-**Strategic Actions**:
-1. Implement volume-based precision thresholds
-2. Prioritize rule optimization by volume × precision gap score
-3. Create category-specific monitoring alerts
-4. Develop volume-based rule sensitivity adjustments
-
-**Expected Impact**: +10-15% precision for high-volume categories  
-**ROI**: Highest impact per effort ratio
-
----
-
-### 2.2 Temporal Operational Patterns **OPERATIONAL EXCELLENCE**
-**Source**: Combined Temporal Analysis  
-**Evidence**: Significant operational variations affecting precision
-
-**Day-of-Week Patterns**:
-```
-FP Rate Variability:
-- Monday: 27.1% (highest - 406 records, 4,975 avg length)
-- Tuesday: 26.1% (314 records, 4,304 avg length)
-- Wednesday: 23.7% (211 records, 4,855 avg length)
-- Thursday: 25.6% (550 records, 5,077 avg length)
-- Friday: 22.9% (lowest - 481 records, 5,323 avg length)
-- Weekend: 24.9% average (893 records)
-```
-
-**Week-of-Month Effects**:
-```
-FP Rate by Week:
-- Week 1: 19.2% FP rate (443 records)
-- Week 2: 25.8% FP rate (824 records)
-- Week 3: 26.2% FP rate (778 records)
-- Week 4: 26.9% FP rate (peak - 717 records)
-- Week 5: 22.6% FP rate (93 records)
-```
-
-**Month-End Performance Discovery**:
-```
-Unexpected Positive Finding:
-- Regular Days: 25.4% FP rate, 74.6% TP rate, 0.73 qualifying language
-- Month-End Days: 23.7% FP rate, 76.3% TP rate, 0.68 qualifying language
-- Month-end shows +1.9% precision improvement with less ambiguous language
-```
-
-**Strategic Actions**:
-1. Investigate Monday operational differences (training, staffing, call types)
-2. Implement day-of-week specific thresholds
-3. Monitor for agent fatigue patterns throughout the week
-4. Research month-end success factors and replicate year-round
-5. Analyze call type distribution by day of week
-6. Apply month-end practices throughout the month
-
-**Expected Impact**: +3-5% precision through operational consistency
-
----
-
-### 2.3 Transcript Content Discrimination **STATISTICAL SIGNIFICANCE**
-**Source**: Content Pattern Analysis + Advanced Pattern Detection  
-**Evidence**: Multiple statistically significant content differences
-
-**Transcript Length Analysis**:
-```
-Length Discrimination (p < 0.000001):
-- True Positives: 5,366 characters average (detailed complaints)
-- False Positives: 3,778 characters average (brief interactions)
-- Difference: -1,588 characters (29.6% shorter FPs)
-- Statistical Confidence: 99.9999%
-```
-
-**Agent-Customer Ratio Analysis**:
-```
-Conversation Balance Insights:
-- TP Customer Words: 554.42 avg (customers expressing concerns)
-- FP Customer Words: 357.03 avg (brief interactions)
-- TP Agent Words: 623.63 avg (detailed responses)
-- FP Agent Words: 476.60 avg (shorter explanations)
-- Customer-Agent Ratio: 0.93 vs 0.787 (-14.3% difference)
-```
-
-**Advanced Pattern Risk Assessment**:
-```
-Current Pattern Analysis (All show risk factor <2.0 - indicating need for sophistication):
-- Politeness: 99.1% TP vs 98.8% FP (minimal discrimination)
-- Uncertainty: 69.5% TP vs 60.4% FP (moderate discrimination)
-- Frustration: 14.0% TP vs 5.4% FP (significant discrimination)
-- Hypotheticals: 45.5% TP vs 34.8% FP (moderate discrimination)
-```
-
-**Implementation Strategy**:
-1. Set minimum length thresholds (>2,500 characters for high-confidence flagging)
-2. Implement length-based confidence scoring
-3. Review rules triggering on very short interactions
-4. Implement speaker ratio thresholds
-5. Flag interactions where customers speak <40% of words
-6. Adjust rules based on conversation balance
-7. Implement ML-based pattern detection system
-8. Develop semantic understanding for context-aware rules
-
-**Expected Impact**: +8-14% precision through content filtering and advanced patterns
-
----
-
-### 2.4 Seasonal Performance Optimization **STRATEGIC INSIGHT**
-**Source**: Seasonal Patterns Analysis  
-**Evidence**: Counter-intuitive seasonal performance patterns
-
-**Seasonal Performance Analysis**:
-```
-Holiday Season Success Pattern:
-- Regular Season: 73.8% precision, 1,386 total flagged, 5,017 avg length
-- Holiday Season: 75.7% precision, 1,491 total flagged, 4,918 avg length
-- Holiday season shows +1.9% precision improvement despite higher volume
-```
-
-**Strategic Actions**:
-1. Research holiday season factors that improve performance
-2. Apply successful holiday practices year-round
-3. Analyze customer behavior differences during holidays
-4. Create seasonal performance benchmarks
-5. Adjust precision targets seasonally
-6. Implement holiday-specific validation protocols
-
-**Expected Impact**: +1-3% precision through seasonal optimization
-
----
-
-## 3. Medium Priority Insights
-
-### 3.1 Query Complexity Optimization **SYSTEMATIC IMPROVEMENT**
-**Source**: Query Performance Review + Query Complexity Issues  
-**Evidence**: Complex queries correlate with poor performance
-
-**Query Complexity Impact Analysis**:
-```
-Significant Month-over-Month Precision Degradation:
-- Credit Card ATM - Rejected/Declined: -88.2% precision drop (Feb 2025)
-- Credit Card ATM - Didn't Receive Card/PIN: -44.2% drop (Mar 2025)
-- Customer Relations - Close Account: -38.6% drop (Mar 2025)
-- Fraud - General Dissatisfaction: -40.0% drop (Nov 2024)
-```
-
-**Strategic Actions**:
-1. Audit top 10 worst-performing categories for query complexity
-2. Reduce OR clause complexity in underperforming queries
-3. Implement query performance monitoring dashboard
-4. Establish query complexity scoring system
-5. Create continuous pattern learning and adaptation framework
-
-**Expected Impact**: +5-10% precision through query optimization
-
----
-
-### 3.2 Cross-Category Validation Framework **SYSTEM INTEGRITY**
-**Source**: Cross Category Analysis  
-**Evidence**: Potential system design issues
-
-**Cross-Category Analysis**:
-```
-Multi-Category Transcript Findings:
-- Single category: 2,310 transcripts
-- Multi-category: 0 transcripts (unexpected - investigation needed)
-- Category combination patterns suggest potential rule conflicts
-```
-
-**Strategic Actions**:
-1. Investigate why no true multi-category transcripts exist
-2. Review category overlap rules for potential conflicts
-3. Implement cross-category validation checks
-4. Create automated pattern risk scoring
-
-**Expected Impact**: +2-5% precision through system integrity improvements
-
----
-
-## 4. Monitoring & Risk Management Framework
-
-### 4.1 Risk Monitoring **RED FLAGS**
-**Critical Risk Indicators**:
-- Single-month precision drops >10%
-- Validation agreement <75%
-- New category launches without baseline establishment
-- Volume spikes >25% without precision adjustment
-- Statistical significance violations (p-value monitoring)
-
-### 4.2 Real-Time Dashboards
-**Daily Monitoring**:
-- Category precision tracking
-- Pattern alerts and anomaly detection
-- Real-time performance dashboards
-- Volume spike monitoring with precision alerts
-
-**Weekly Reviews**:
-- Category performance analysis
-- FP pattern trends
-- Operational metrics
-- Day-of-week performance variance
-
-**Monthly Assessments**:
-- Validation effectiveness review
-- Rule performance evaluation
-- Strategic progress tracking
-- Seasonal adjustment analysis
-
-**Quarterly Evaluations**:
-- ROI analysis and business impact
-- Strategic initiative outcomes
-- Long-term trend assessment
-- Advanced analytics implementation review
-
-### 4.3 Automated Alert System
-```
-Alert Thresholds:
-- Precision drops >5% (immediate alert)
-- Validation agreement <80% (weekly alert)
-- Volume spikes >20% (operational alert)
-- Category performance <60% (daily alert)
-- Chi-square p-value >0.05 for period changes (statistical alert)
-```
-
----
-
-## 5. Success Tracking & KPIs
-
-### Primary Success Metrics
-- **Overall Precision**: Target 85%+ (currently 74.8%)
-- **Category Performance**: All categories >60% precision (currently 37/158 below 70%)
-- **Validation Agreement**: Sustained >85% (currently 83.6%)
-
-### Secondary Performance Indicators
-- **Context Issues**: Reduce from 96.7% to <60% of FPs
-- **Agent Contamination**: Reduce from 58.5% to <30% of FPs
-- **High-Volume Categories**: Achieve 70%+ precision for all categories >50 volume
-- **Temporal Consistency**: Reduce day-of-week variance from 4.2% to <2%
-
-### Operational Excellence Metrics
-- **Monthly Validation Agreement**: >85% sustained
-- **Query Performance**: All categories show positive or stable MoM trends
-- **Volume Resilience**: Precision maintained during >20% volume spikes
-- **Seasonal Optimization**: Leverage holiday season practices for year-round improvement
-
-**Implementation Success**: Yes - achieving 89-95% precision target is feasible  
-**Strategic Value**: High - comprehensive framework addresses root causes while building sustainable improvement capabilities
+import os
+from pptx import Presentation
+from pptx.util import Inches, Pt
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.dml.color import RGBColor
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE
+import datetime
+
+def create_precision_analysis_presentation():
+    """Create a comprehensive PowerPoint presentation for Precision Drop Analysis"""
+    
+    # Create presentation object
+    prs = Presentation()
+    prs.slide_width = Inches(10)
+    prs.slide_height = Inches(7.5)
+    
+    # Define color scheme
+    DARK_BLUE = RGBColor(30, 60, 114)  # #1e3c72
+    MEDIUM_BLUE = RGBColor(42, 82, 152)  # #2a5298
+    LIGHT_BLUE = RGBColor(232, 244, 248)  # #e8f4f8
+    RED = RGBColor(255, 107, 107)  # #ff6b6b
+    ORANGE = RGBColor(255, 167, 38)  # #ffa726
+    GREEN = RGBColor(102, 187, 106)  # #66bb6a
+    GRAY = RGBColor(102, 102, 102)  # #666666
+    
+    # Slide 1: Title Slide
+    slide_layout = prs.slide_layouts[6]  # Blank layout
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Add gradient background
+    background = slide.background
+    fill = background.fill
+    fill.solid()
+    fill.fore_color.rgb = DARK_BLUE
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(2), Inches(9), Inches(2))
+    title_frame = title_box.text_frame
+    title_frame.text = "Precision Drop Analysis"
+    title_frame.paragraphs[0].font.size = Pt(48)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+    title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    
+    # Subtitle
+    subtitle_box = slide.shapes.add_textbox(Inches(0.5), Inches(3.5), Inches(9), Inches(1))
+    subtitle_frame = subtitle_box.text_frame
+    subtitle_frame.text = "Critical Insights & Action Plan"
+    subtitle_frame.paragraphs[0].font.size = Pt(28)
+    subtitle_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+    subtitle_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    
+    # Date
+    date_box = slide.shapes.add_textbox(Inches(0.5), Inches(5), Inches(9), Inches(1))
+    date_frame = date_box.text_frame
+    date_frame.text = "Executive Presentation"
+    date_frame.paragraphs[0].font.size = Pt(18)
+    date_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+    date_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    
+    # Slide 2: Executive Summary
+    slide_layout = prs.slide_layouts[5]  # Blank layout
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+    title_frame = title_box.text_frame
+    title_frame.text = "Executive Summary"
+    title_frame.paragraphs[0].font.size = Pt(36)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = DARK_BLUE
+    
+    # Add metrics cards
+    metrics = [
+        ("74.8%", "Current Precision", "4.8% Above Target", GREEN),
+        ("96.7%", "FPs from Context Issues", "Critical", RED),
+        ("$2.4M", "Annual Cost Impact", "At Risk", ORANGE),
+        ("37/158", "Categories Below Target", "23.4%", RED)
+    ]
+    
+    x_positions = [0.5, 2.75, 5, 7.25]
+    for i, (value, label, status, color) in enumerate(metrics):
+        # Card background
+        card = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(x_positions[i]), Inches(1.5),
+            Inches(2), Inches(2)
+        )
+        card.fill.solid()
+        card.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        card.line.color.rgb = RGBColor(224, 224, 224)
+        card.line.width = Pt(1)
+        
+        # Value
+        value_box = slide.shapes.add_textbox(
+            Inches(x_positions[i]), Inches(1.7),
+            Inches(2), Inches(0.6)
+        )
+        value_frame = value_box.text_frame
+        value_frame.text = value
+        value_frame.paragraphs[0].font.size = Pt(32)
+        value_frame.paragraphs[0].font.bold = True
+        value_frame.paragraphs[0].font.color.rgb = MEDIUM_BLUE
+        value_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        
+        # Label
+        label_box = slide.shapes.add_textbox(
+            Inches(x_positions[i]), Inches(2.3),
+            Inches(2), Inches(0.4)
+        )
+        label_frame = label_box.text_frame
+        label_frame.text = label
+        label_frame.paragraphs[0].font.size = Pt(12)
+        label_frame.paragraphs[0].font.color.rgb = GRAY
+        label_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        
+        # Status
+        status_box = slide.shapes.add_textbox(
+            Inches(x_positions[i]), Inches(2.8),
+            Inches(2), Inches(0.3)
+        )
+        status_frame = status_box.text_frame
+        status_frame.text = status
+        status_frame.paragraphs[0].font.size = Pt(10)
+        status_frame.paragraphs[0].font.color.rgb = color
+        status_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    
+    # Critical finding box
+    finding_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(4.2),
+        Inches(9), Inches(2)
+    )
+    finding_box.fill.solid()
+    finding_box.fill.fore_color.rgb = RGBColor(255, 243, 205)  # Light yellow
+    finding_box.line.color.rgb = RED
+    finding_box.line.width = Pt(3)
+    
+    # Critical label
+    label_box = slide.shapes.add_textbox(Inches(0.8), Inches(4.4), Inches(2), Inches(0.3))
+    label_frame = label_box.text_frame
+    label_frame.text = "CRITICAL FINDING"
+    label_frame.paragraphs[0].font.size = Pt(12)
+    label_frame.paragraphs[0].font.bold = True
+    label_frame.paragraphs[0].font.color.rgb = RED
+    
+    # Finding text
+    finding_text = slide.shapes.add_textbox(Inches(0.8), Inches(4.8), Inches(8.4), Inches(1.2))
+    finding_frame = finding_text.text_frame
+    finding_frame.text = "96.7% of False Positives stem from context-insensitive rule processing"
+    finding_frame.paragraphs[0].font.size = Pt(18)
+    finding_frame.paragraphs[0].font.bold = True
+    
+    p = finding_frame.add_paragraph()
+    p.text = "Systematic erosion across categories requires immediate technical intervention combined with operational standardization."
+    p.font.size = Pt(14)
+    
+    # Slide 3: Performance Against Targets
+    slide_layout = prs.slide_layouts[5]
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+    title_frame = title_box.text_frame
+    title_frame.text = "Performance vs. Targets"
+    title_frame.paragraphs[0].font.size = Pt(36)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = DARK_BLUE
+    
+    # Add table
+    rows = 4
+    cols = 5
+    left = Inches(0.5)
+    top = Inches(1.5)
+    width = Inches(9)
+    height = Inches(2)
+    
+    table = slide.shapes.add_table(rows, cols, left, top, width, height).table
+    
+    # Set column widths
+    table.columns[0].width = Inches(3)
+    table.columns[1].width = Inches(1.5)
+    table.columns[2].width = Inches(1.5)
+    table.columns[3].width = Inches(1.5)
+    table.columns[4].width = Inches(1.5)
+    
+    # Header row
+    headers = ['Metric', 'Target', 'Current', 'Status', 'Gap']
+    for i, header in enumerate(headers):
+        cell = table.cell(0, i)
+        cell.text = header
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = MEDIUM_BLUE
+        paragraph = cell.text_frame.paragraphs[0]
+        paragraph.font.color.rgb = RGBColor(255, 255, 255)
+        paragraph.font.bold = True
+        paragraph.font.size = Pt(14)
+    
+    # Data rows
+    data = [
+        ['Primary: Overall Precision', '≥ 70%', '74.8%', 'EXCEEDING', '+4.8%'],
+        ['Secondary: All Categories', '≥ 60%', '37/158 below 70%', 'FAILING', '-23.4%'],
+        ['Tertiary: Validation Agreement', '≥ 85%', '83.6%', 'BELOW', '-1.4%']
+    ]
+    
+    status_colors = {
+        'EXCEEDING': GREEN,
+        'FAILING': RED,
+        'BELOW': ORANGE
+    }
+    
+    for i, row_data in enumerate(data):
+        for j, value in enumerate(row_data):
+            cell = table.cell(i+1, j)
+            cell.text = value
+            if j == 3:  # Status column
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = status_colors.get(value, GRAY)
+                cell.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+            cell.text_frame.paragraphs[0].font.size = Pt(12)
+    
+    # Add trend chart
+    chart_data = CategoryChartData()
+    chart_data.categories = ['Nov 2024', 'Dec 2024', 'Jan 2025', 'Feb 2025', 'Mar 2025']
+    chart_data.add_series('Precision %', (80.3, 70.5, 75.2, 70.8, 71.9))
+    
+    x, y, cx, cy = Inches(0.5), Inches(4.2), Inches(9), Inches(2.5)
+    chart = slide.shapes.add_chart(
+        XL_CHART_TYPE.LINE, x, y, cx, cy, chart_data
+    ).chart
+    
+    chart.has_title = True
+    chart.chart_title.text_frame.text = "Precision Trend Analysis"
+    
+    # Slide 4: Critical Priority #1
+    slide_layout = prs.slide_layouts[5]
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+    title_frame = title_box.text_frame
+    title_frame.text = "Critical Priority #1: Context-Insensitive Negation"
+    title_frame.paragraphs[0].font.size = Pt(32)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = DARK_BLUE
+    
+    # Critical finding box
+    finding_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(1.3),
+        Inches(9), Inches(1.2)
+    )
+    finding_box.fill.solid()
+    finding_box.fill.fore_color.rgb = RGBColor(255, 243, 205)
+    finding_box.line.color.rgb = RED
+    finding_box.line.width = Pt(3)
+    
+    # Critical text
+    critical_text = slide.shapes.add_textbox(Inches(0.8), Inches(1.5), Inches(8.4), Inches(0.8))
+    critical_frame = critical_text.text_frame
+    critical_frame.text = "CRITICAL - 96.7% OF ALL FPS"
+    critical_frame.paragraphs[0].font.size = Pt(14)
+    critical_frame.paragraphs[0].font.bold = True
+    critical_frame.paragraphs[0].font.color.rgb = RED
+    
+    p = critical_frame.add_paragraph()
+    p.text = "Rules trigger on complaint keywords without understanding negation context"
+    p.font.size = Pt(16)
+    
+    # Evidence boxes
+    evidence_data = [
+        ("Evidence", [
+            "True Positives: 11.789 negations/transcript",
+            "False Positives: 6.233 negations/transcript",
+            "Risk Factor: 0.529"
+        ]),
+        ("Financial Impact", [
+            "Annual Cost: $2.4M",
+            "Per FP Cost: $100",
+            "Volume: 24,000 FPs/year"
+        ])
+    ]
+    
+    x_pos = [0.5, 5]
+    for i, (title, items) in enumerate(evidence_data):
+        box = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(x_pos[i]), Inches(2.8),
+            Inches(4.3), Inches(1.8)
+        )
+        box.fill.solid()
+        box.fill.fore_color.rgb = RGBColor(255, 235, 235) if i == 0 else RGBColor(255, 235, 235)
+        box.line.color.rgb = RED
+        box.line.width = Pt(2)
+        
+        text_box = slide.shapes.add_textbox(
+            Inches(x_pos[i] + 0.2), Inches(3),
+            Inches(3.9), Inches(1.4)
+        )
+        text_frame = text_box.text_frame
+        text_frame.text = title
+        text_frame.paragraphs[0].font.bold = True
+        text_frame.paragraphs[0].font.size = Pt(14)
+        
+        for item in items:
+            p = text_frame.add_paragraph()
+            p.text = item
+            p.font.size = Pt(12)
+    
+    # Example pattern
+    example_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(5),
+        Inches(9), Inches(0.8)
+    )
+    example_box.fill.solid()
+    example_box.fill.fore_color.rgb = RGBColor(244, 244, 244)
+    example_box.line.color.rgb = MEDIUM_BLUE
+    example_box.line.width = Pt(2)
+    
+    example_text = slide.shapes.add_textbox(Inches(0.8), Inches(5.1), Inches(8.4), Inches(0.6))
+    example_frame = example_text.text_frame
+    example_frame.text = 'Customer: "I\'m NOT complaining, but I\'d like to understand my bill..."'
+    example_frame.paragraphs[0].font.name = 'Courier New'
+    example_frame.paragraphs[0].font.size = Pt(11)
+    p = example_frame.add_paragraph()
+    p.text = "System: [FLAGGED AS COMPLAINT]"
+    p.font.name = 'Courier New'
+    p.font.size = Pt(11)
+    p.font.color.rgb = RED
+    
+    # Immediate actions
+    actions_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(6),
+        Inches(9), Inches(1.2)
+    )
+    actions_box.fill.solid()
+    actions_box.fill.fore_color.rgb = LIGHT_BLUE
+    
+    actions_text = slide.shapes.add_textbox(Inches(0.8), Inches(6.1), Inches(8.4), Inches(1))
+    actions_frame = actions_text.text_frame
+    actions_frame.text = "Immediate Actions:"
+    actions_frame.paragraphs[0].font.bold = True
+    actions_frame.paragraphs[0].font.size = Pt(14)
+    
+    actions = [
+        "→ Implement universal negation template for all queries",
+        "→ Add context window expansion (10-word radius)",
+        "→ Deploy to top 5 worst-performing categories first"
+    ]
+    
+    for action in actions:
+        p = actions_frame.add_paragraph()
+        p.text = action
+        p.font.size = Pt(12)
+    
+    # Slide 5: Critical Priority #2
+    slide_layout = prs.slide_layouts[5]
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+    title_frame = title_box.text_frame
+    title_frame.text = "Critical Priority #2: Agent Explanation Contamination"
+    title_frame.paragraphs[0].font.size = Pt(32)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = DARK_BLUE
+    
+    # Priority box
+    priority_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(1.3),
+        Inches(9), Inches(0.8)
+    )
+    priority_box.fill.solid()
+    priority_box.fill.fore_color.rgb = RGBColor(255, 243, 205)
+    priority_box.line.color.rgb = ORANGE
+    priority_box.line.width = Pt(3)
+    
+    priority_text = slide.shapes.add_textbox(Inches(0.8), Inches(1.4), Inches(8.4), Inches(0.6))
+    priority_frame = priority_text.text_frame
+    priority_frame.text = "HIGH PRIORITY - 58.5% OF FPS"
+    priority_frame.paragraphs[0].font.size = Pt(14)
+    priority_frame.paragraphs[0].font.bold = True
+    priority_frame.paragraphs[0].font.color.rgb = ORANGE
+    
+    p = priority_frame.add_paragraph()
+    p.text = "Agent hypothetical scenarios incorrectly trigger complaint detection"
+    p.font.size = Pt(16)
+    
+    # Contamination table
+    rows = 5
+    cols = 3
+    left = Inches(0.5)
+    top = Inches(2.5)
+    width = Inches(9)
+    height = Inches(2)
+    
+    table = slide.shapes.add_table(rows, cols, left, top, width, height).table
+    
+    # Headers
+    headers = ['Category', 'Contamination Rate', 'Impact']
+    for i, header in enumerate(headers):
+        cell = table.cell(0, i)
+        cell.text = header
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = MEDIUM_BLUE
+        cell.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+        cell.text_frame.paragraphs[0].font.bold = True
+    
+    # Data
+    contamination_data = [
+        ['Fees & Interest', '75.0%', 'Highest'],
+        ['Billing Disputes', '66.2%', 'High'],
+        ['Customer Relations', '54.9%', 'Medium'],
+        ['Overall Average', '58.5%', 'High']
+    ]
+    
+    for i, row_data in enumerate(contamination_data):
+        for j, value in enumerate(row_data):
+            cell = table.cell(i+1, j)
+            cell.text = value
+            if j == 2:  # Impact column
+                if value == 'Highest' or value == 'High':
+                    cell.fill.solid()
+                    cell.fill.fore_color.rgb = RGBColor(255, 235, 235)
+    
+    # Example
+    example_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(5),
+        Inches(9), Inches(0.8)
+    )
+    example_box.fill.solid()
+    example_box.fill.fore_color.rgb = RGBColor(244, 244, 244)
+    
+    example_text = slide.shapes.add_textbox(Inches(0.8), Inches(5.1), Inches(8.4), Inches(0.6))
+    example_frame = example_text.text_frame
+    example_frame.text = 'Agent: "If you were to complain about fees, you would need to..."'
+    example_frame.paragraphs[0].font.name = 'Courier New'
+    example_frame.paragraphs[0].font.size = Pt(11)
+    p = example_frame.add_paragraph()
+    p.text = "System: [FLAGGED AS COMPLAINT]"
+    p.font.name = 'Courier New'
+    p.font.size = Pt(11)
+    p.font.color.rgb = RED
+    
+    # Solution approach
+    solution_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(6),
+        Inches(9), Inches(1.2)
+    )
+    solution_box.fill.solid()
+    solution_box.fill.fore_color.rgb = LIGHT_BLUE
+    
+    solution_text = slide.shapes.add_textbox(Inches(0.8), Inches(6.1), Inches(8.4), Inches(1))
+    solution_frame = solution_text.text_frame
+    solution_frame.text = "Solution Approach:"
+    solution_frame.paragraphs[0].font.bold = True
+    
+    solutions = [
+        "→ Implement speaker role detection",
+        "→ Add agent explanation filters",
+        "→ Focus rules on customer channel only",
+        "→ Expected Impact: +8-12% precision improvement"
+    ]
+    
+    for solution in solutions:
+        p = solution_frame.add_paragraph()
+        p.text = solution
+        p.font.size = Pt(12)
+    
+    # Slide 6: Emergency Categories
+    slide_layout = prs.slide_layouts[5]
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+    title_frame = title_box.text_frame
+    title_frame.text = "Emergency Category Review"
+    title_frame.paragraphs[0].font.size = Pt(36)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = DARK_BLUE
+    
+    # Urgent box
+    urgent_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(1.3),
+        Inches(9), Inches(0.8)
+    )
+    urgent_box.fill.solid()
+    urgent_box.fill.fore_color.rgb = RGBColor(255, 243, 205)
+    urgent_box.line.color.rgb = RED
+    urgent_box.line.width = Pt(3)
+    
+    urgent_text = slide.shapes.add_textbox(Inches(0.8), Inches(1.4), Inches(8.4), Inches(0.6))
+    urgent_frame = urgent_text.text_frame
+    urgent_frame.text = "URGENT ACTION REQUIRED"
+    urgent_frame.paragraphs[0].font.size = Pt(14)
+    urgent_frame.paragraphs[0].font.bold = True
+    urgent_frame.paragraphs[0].font.color.rgb = RED
+    
+    p = urgent_frame.add_paragraph()
+    p.text = "3 Categories in Critical State with Severe MoM Degradation"
+    p.font.size = Pt(16)
+    
+    # Emergency categories table
+    rows = 4
+    cols = 5
+    left = Inches(0.5)
+    top = Inches(2.5)
+    width = Inches(9)
+    height = Inches(2)
+    
+    table = slide.shapes.add_table(rows, cols, left, top, width, height).table
+    
+    # Headers
+    headers = ['Category', 'Current Precision', 'MoM Drop', 'Impact Score', 'Priority']
+    for i, header in enumerate(headers):
+        cell = table.cell(0, i)
+        cell.text = header
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = MEDIUM_BLUE
+        cell.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+        cell.text_frame.paragraphs[0].font.bold = True
+        cell.text_frame.paragraphs[0].font.size = Pt(12)
+    
+    # Data
+    emergency_data = [
+        ['Credit Card ATM - Unclassified', '39.6%', '-', '14.6', 'EMERGENCY'],
+        ['Credit Card ATM - Rejected/Declined', '47.3%', '-88.2%', '12.5', 'CRITICAL'],
+        ['Customer Relations - Close Account', '56.2%', '-38.6%', '22.4', 'CRITICAL']
+    ]
+    
+    for i, row_data in enumerate(emergency_data):
+        for j, value in enumerate(row_data):
+            cell = table.cell(i+1, j)
+            cell.text = value
+            if j == 4:  # Priority column
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = RED
+                cell.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+            cell.text_frame.paragraphs[0].font.size = Pt(11)
+    
+    # Category-specific actions
+    actions_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(5),
+        Inches(9), Inches(2)
+    )
+    actions_box.fill.solid()
+    actions_box.fill.fore_color.rgb = LIGHT_BLUE
+    
+    actions_text = slide.shapes.add_textbox(Inches(0.8), Inches(5.1), Inches(8.4), Inches(1.8))
+    actions_frame = actions_text.text_frame
+    actions_frame.text = "Category-Specific Actions:"
+    actions_frame.paragraphs[0].font.bold = True
+    actions_frame.paragraphs[0].font.size = Pt(14)
+    
+    category_actions = [
+        "→ Close Account: Add context filters for retention vs complaint",
+        "→ Unclassified: Improve classification specificity",
+        "→ Rejected/Declined: Separate technical issues from complaints",
+        "→ Expected Impact: +25-30% precision for these categories"
+    ]
+    
+    for action in category_actions:
+        p = actions_frame.add_paragraph()
+        p.text = action
+        p.font.size = Pt(12)
+    
+    # Slide 7: Implementation Timeline
+    slide_layout = prs.slide_layouts[5]
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+    title_frame = title_box.text_frame
+    title_frame.text = "Implementation Timeline"
+    title_frame.paragraphs[0].font.size = Pt(36)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = DARK_BLUE
+    
+    # Timeline items
+    timeline_data = [
+        ("Week 1-2", "Critical Fixes", [
+            "Deploy universal negation template",
+            "Fix top 3 emergency categories",
+            "Implement daily monitoring dashboard"
+        ]),
+        ("Month 1", "Systematic Improvements", [
+            "Query optimization program",
+            "Enhanced validation process",
+            "Pattern-based improvements"
+        ]),
+        ("Quarter 1", "Strategic Initiatives", [
+            "ML-based FP prediction",
+            "Context-aware rule engine",
+            "Semantic understanding layer"
+        ])
+    ]
+    
+    y_pos = 1.5
+    for period, title, items in timeline_data:
+        # Timeline marker
+        marker = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(0.5), Inches(y_pos),
+            Inches(1.5), Inches(0.5)
+        )
+        marker.fill.solid()
+        marker.fill.fore_color.rgb = MEDIUM_BLUE
+        
+        marker_text = slide.shapes.add_textbox(Inches(0.5), Inches(y_pos), Inches(1.5), Inches(0.5))
+        marker_frame = marker_text.text_frame
+        marker_frame.text = period
+        marker_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+        marker_frame.paragraphs[0].font.bold = True
+        marker_frame.paragraphs[0].font.size = Pt(12)
+        marker_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        
+        # Content box
+        content_box = slide.shapes.add_textbox(Inches(2.2), Inches(y_pos), Inches(7.3), Inches(1.5))
+        content_frame = content_box.text_frame
+        content_frame.text = title
+        content_frame.paragraphs[0].font.bold = True
+        content_frame.paragraphs[0].font.size = Pt(14)
+        
+        for item in items:
+            p = content_frame.add_paragraph()
+            p.text = f"• {item}"
+            p.font.size = Pt(11)
+        
+        y_pos += 1.8
+    
+    # Expected outcomes boxes
+    outcome_data = [
+        ("Expected Outcomes", [
+            "Current: 74.8%",
+            "Expected Gain: +10-15%",
+            "Target: 85-89%"
+        ]),
+        ("Investment Required", [
+            "Resources: 3-5 FTEs",
+            "Timeline: 12 weeks",
+            "ROI: $2.4M saved annually"
+        ])
+    ]
+    
+    x_pos = [1, 5.5]
+    for i, (title, items) in enumerate(outcome_data):
+        box = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(x_pos[i]), Inches(5.5),
+            Inches(3.5), Inches(1.5)
+        )
+        box.fill.solid()
+        box.fill.fore_color.rgb = RGBColor(255, 250, 240) if i == 0 else RGBColor(240, 248, 255)
+        box.line.color.rgb = GREEN if i == 0 else MEDIUM_BLUE
+        box.line.width = Pt(2)
+        
+        text_box = slide.shapes.add_textbox(
+            Inches(x_pos[i] + 0.2), Inches(5.6),
+            Inches(3.1), Inches(1.3)
+        )
+        text_frame = text_box.text_frame
+        text_frame.text = title
+        text_frame.paragraphs[0].font.bold = True
+        text_frame.paragraphs[0].font.size = Pt(13)
+        
+        for item in items:
+            p = text_frame.add_paragraph()
+            p.text = item
+            p.font.size = Pt(11)
+    
+    # Slide 8: Monitoring Framework
+    slide_layout = prs.slide_layouts[5]
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+    title_frame = title_box.text_frame
+    title_frame.text = "Monitoring & Risk Management"
+    title_frame.paragraphs[0].font.size = Pt(36)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = DARK_BLUE
+    
+    # Risk indicators and alerts
+    risk_data = [
+        ("Critical Risk Indicators", [
+            "Single-month precision drops >10%",
+            "Validation agreement <75%",
+            "New category launches without baseline",
+            "Volume spikes >25% without adjustment"
+        ]),
+        ("Alert Thresholds", [
+            "Precision drops >5% → Immediate alert",
+            "Validation <80% → Weekly alert",
+            "Volume spikes >20% → Operational alert",
+            "Category <60% → Daily alert"
+        ])
+    ]
+    
+    x_pos = [0.5, 5]
+    for i, (title, items) in enumerate(risk_data):
+        box = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(x_pos[i]), Inches(1.5),
+            Inches(4.3), Inches(2.2)
+        )
+        box.fill.solid()
+        box.fill.fore_color.rgb = RGBColor(255, 250, 250) if i == 0 else RGBColor(250, 250, 255)
+        box.line.color.rgb = RED if i == 0 else ORANGE
+        box.line.width = Pt(2)
+        
+        text_box = slide.shapes.add_textbox(
+            Inches(x_pos[i] + 0.2), Inches(1.7),
+            Inches(3.9), Inches(1.8)
+        )
+        text_frame = text_box.text_frame
+        text_frame.text = title
+        text_frame.paragraphs[0].font.bold = True
+        text_frame.paragraphs[0].font.size = Pt(14)
+        
+        for item in items:
+            p = text_frame.add_paragraph()
+            p.text = f"• {item}"
+            p.font.size = Pt(11)
+    
+    # Monitoring frequency table
+    rows = 4
+    cols = 3
+    left = Inches(0.5)
+    top = Inches(4)
+    width = Inches(9)
+    height = Inches(2.5)
+    
+    table = slide.shapes.add_table(rows, cols, left, top, width, height).table
+    
+    # Headers
+    headers = ['Frequency', 'Metrics', 'Actions']
+    for i, header in enumerate(headers):
+        cell = table.cell(0, i)
+        cell.text = header
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = MEDIUM_BLUE
+        cell.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+        cell.text_frame.paragraphs[0].font.bold = True
+    
+    # Monitoring data
+    monitoring_data = [
+        ['Daily', 'Category precision, Volume', 'Real-time alerts, Anomaly detection'],
+        ['Weekly', 'FP patterns, Operational metrics', 'Pattern analysis, Performance review'],
+        ['Monthly', 'Validation effectiveness, Rule performance', 'Strategic assessment, Calibration']
+    ]
+    
+    for i, row_data in enumerate(monitoring_data):
+        for j, value in enumerate(row_data):
+            cell = table.cell(i+1, j)
+            cell.text = value
+            cell.text_frame.paragraphs[0].font.size = Pt(11)
+    
+    # Slide 9: Key Recommendations
+    slide_layout = prs.slide_layouts[5]
+    slide = prs.slides.add_slide(slide_layout)
+    
+    # Title
+    title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.3), Inches(9), Inches(0.8))
+    title_frame = title_box.text_frame
+    title_frame.text = "Key Recommendations & Next Steps"
+    title_frame.paragraphs[0].font.size = Pt(36)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].font.color.rgb = DARK_BLUE
+    
+    # Recommendation boxes
+    rec_data = [
+        ("Immediate Actions (Week 1)", [
+            "Deploy negation handling fix",
+            "Emergency category intervention",
+            "Validation team investigation"
+        ], RED),
+        ("Quick Wins (Month 1)", [
+            "Agent contamination filters",
+            "Query complexity reduction",
+            "Monitoring dashboard launch"
+        ], ORANGE),
+        ("Strategic Goals (Quarter 1)", [
+            "ML-based improvements",
+            "Context-aware processing",
+            "85%+ precision target"
+        ], GREEN),
+        ("Success Metrics", [
+            "Overall precision: 85%+",
+            "All categories: >60%",
+            "Validation agreement: >85%",
+            "$2.4M cost avoidance"
+        ], MEDIUM_BLUE)
+    ]
+    
+    positions = [(0.5, 1.5), (5, 1.5), (0.5, 4), (5, 4)]
+    
+    for i, (title, items, color) in enumerate(rec_data):
+        x, y = positions[i]
+        box = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(x), Inches(y),
+            Inches(4.3), Inches(2)
+        )
+        box.fill.solid()
+        box.fill.fore_color.rgb = RGBColor(255, 250, 250) if color == RED else RGBColor(255, 253, 240) if color == ORANGE else RGBColor(240, 255, 240) if color == GREEN else RGBColor(240, 248, 255)
+        box.line.color.rgb = color
+        box.line.width = Pt(2)
+        
+        text_box = slide.shapes.add_textbox(
+            Inches(x + 0.2), Inches(y + 0.1),
+            Inches(3.9), Inches(1.8)
+        )
+        text_frame = text_box.text_frame
+        text_frame.text = title
+        text_frame.paragraphs[0].font.bold = True
+        text_frame.paragraphs[0].font.size = Pt(13)
+        
+        for item in items:
+            p = text_frame.add_paragraph()
+            p.text = f"• {item}"
+            p.font.size = Pt(11)
+    
+    # Feasibility assessment
+    feasibility_box = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(0.5), Inches(6.2),
+        Inches(9), Inches(1)
+    )
+    feasibility_box.fill.solid()
+    feasibility_box.fill.fore_color.rgb = RGBColor(212, 237, 218)  # Light green
+    feasibility_box.line.color.rgb = GREEN
+    feasibility_box.line.width = Pt(3)
+    
+    feasibility_text = slide.shapes.add_textbox(Inches(0.8), Inches(6.3), Inches(8.4), Inches(0.8))
+    feasibility_frame = feasibility_text.text_frame
+    feasibility_frame.text = "Feasibility Assessment"
+    feasibility_frame.paragraphs[0].font.bold = True
+    feasibility_frame.paragraphs[0].font.size = Pt(14)
+    
+    p = feasibility_frame.add_paragraph()
+    p.text = "Implementation Success: Yes - achieving 85-89% precision target is feasible"
+    p.font.size = Pt(12)
+    
+    p = feasibility_frame.add_paragraph()
+    p.text = "Strategic Value: High - comprehensive framework addresses root causes while building sustainable improvement capabilities"
+    p.font.size = Pt(12)
+    
+    # Save presentation
+    prs.save('Precision_Drop_Analysis_Presentation.pptx')
+    print("Presentation created successfully: Precision_Drop_Analysis_Presentation.pptx")
+    print(f"Total slides: {len(prs.slides)}")
+    print("\nSlide contents:")
+    print("1. Title Slide")
+    print("2. Executive Summary")
+    print("3. Performance vs. Targets")
+    print("4. Critical Priority #1: Context-Insensitive Negation")
+    print("5. Critical Priority #2: Agent Explanation Contamination")
+    print("6. Emergency Category Review")
+    print("7. Implementation Timeline")
+    print("8. Monitoring & Risk Management")
+    print("9. Key Recommendations & Next Steps")
+
+# Create the presentation
+if __name__ == "__main__":
+    create_precision_analysis_presentation()
