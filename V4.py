@@ -1,435 +1,378 @@
-# Enhanced Macro Level Analysis with Monthly Breakdown
-# Modification 2: Add monthly tracking to all macro-level analyses
+# =============================================================================
+# DEEP DIVE ANALYSIS
+# =============================================================================
 
-def analyze_precision_drop_patterns_enhanced(df):
-    """Enhanced precision drop pattern analysis with monthly breakdown"""
+
+# Enhanced Deep Dive Analysis with Monthly Breakdown
+# Modification 3: Add monthly tracking to all deep dive analyses
+
+def fp_pattern_analysis_enhanced(df):
+    """Enhanced false positive pattern analysis with monthly breakdown"""
     
-    print("1.1 Calculate MoM Precision Changes for Each Category")
+    print("1.1 Group All FPs by Category and Month")
     
-    # Original analysis (unchanged)
-    monthly_category_precision = df.groupby(['Year_Month', 'Prosodica L1', 'Prosodica L2']).agg({
-        'Is_TP': ['sum', 'count'],
-        'Is_FP': 'sum'
+    # Original FP grouping analysis (unchanged)
+    fp_analysis = df[df['Primary Marker'] == 'FP'].groupby(['Year_Month', 'Prosodica L1', 'Prosodica L2']).agg({
+        'variable5': 'count',
+        'Transcript_Length': 'mean',
+        'Customer_Negation_Count': 'mean',
+        'Customer_Qualifying_Count': 'mean'
     }).reset_index()
     
-    monthly_category_precision.columns = ['Year_Month', 'L1_Category', 'L2_Category', 'TPs', 'Total_Flagged', 'FPs']
-    monthly_category_precision['Precision'] = np.where(
-        monthly_category_precision['Total_Flagged'] > 0,
-        monthly_category_precision['TPs'] / monthly_category_precision['Total_Flagged'],
-        0
-    )
+    fp_analysis.columns = ['Year_Month', 'L1_Category', 'L2_Category', 'FP_Count', 'Avg_Length', 'Avg_Negations', 'Avg_Qualifiers']
     
-    # Calculate MoM changes
-    monthly_category_precision = monthly_category_precision.sort_values(['L1_Category', 'L2_Category', 'Year_Month'])
-    monthly_category_precision['Precision_MoM_Change'] = monthly_category_precision.groupby(['L1_Category', 'L2_Category'])['Precision'].diff()
+    print("FP Distribution by Month and Category:")
+    fp_summary = fp_analysis.groupby(['L1_Category', 'L2_Category']).agg({
+        'FP_Count': 'sum',
+        'Avg_Length': 'mean',
+        'Avg_Negations': 'mean',
+        'Avg_Qualifiers': 'mean'
+    }).reset_index().sort_values('FP_Count', ascending=False)
     
-    print("Monthly Category Precision Changes:")
-    significant_changes = monthly_category_precision[
-        (abs(monthly_category_precision['Precision_MoM_Change']) > 0.1) & 
-        (monthly_category_precision['Total_Flagged'] >= 10)
-    ].sort_values('Precision_MoM_Change')
+    print("Top 10 Categories by FP Count:")
+    print(fp_summary.head(10).round(3))
     
-    if len(significant_changes) > 0:
-        print(significant_changes[['L1_Category', 'L2_Category', 'Year_Month', 'Precision', 'Precision_MoM_Change']].round(3))
-    else:
-        print("No significant MoM changes detected (>10% with min 10 samples)")
-    
-    # NEW: Monthly Precision Tracking Analysis
-    create_monthly_insight_table(
-        df, 
-        "Overall Precision Patterns",
-        ['Is_TP'],  # We'll analyze precision through TP rates
-        "Monthly precision tracking: TP rates for overall system performance"
-    )
-    
-    print("\n1.2 Identify Categories Contributing Most to Overall Decline")
-    
-    # Original category impact analysis (unchanged)
-    category_impact = df.groupby(['Prosodica L1', 'Prosodica L2']).agg({
-        'Is_TP': ['sum', 'count'],
-        'Is_FP': 'sum',
-        'variable5': 'count'
-    }).reset_index()
-    
-    category_impact.columns = ['L1_Category', 'L2_Category', 'TPs', 'Total_Flagged', 'FPs', 'Total_Volume']
-    category_impact['Precision'] = np.where(
-        category_impact['Total_Flagged'] > 0,
-        category_impact['TPs'] / category_impact['Total_Flagged'],
-        0
-    )
-    category_impact['Precision_Gap'] = 0.70 - category_impact['Precision']
-    category_impact['Impact_Score'] = category_impact['Precision_Gap'] * category_impact['Total_Flagged']
-    
-    category_impact = category_impact.sort_values('Impact_Score', ascending=False)
-    
-    print("Top 10 Categories Contributing to Precision Decline:")
-    print(category_impact.head(10)[['L1_Category', 'L2_Category', 'Precision', 'Total_Flagged', 'Impact_Score']].round(3))
-    
-    # NEW: Monthly Volume Impact Analysis
+    # NEW: Core Negation Analysis - The Key Insight!
+    print("\n1.1.1 CORE INSIGHT: Monthly Negation Pattern Analysis")
     create_monthly_insight_table(
         df,
-        "Volume Impact Patterns", 
-        ['Is_FP'],  # Analyze FP volume patterns monthly
-        "Monthly FP volume tracking: How false positive rates change over time"
+        "Context-Insensitive Negation Handling",
+        ['Customer_Negation_Count'],
+        "CRITICAL: Monthly tracking of TP vs FP negation patterns - the $2.4M insight"
     )
     
-    print("\n1.3 Determine Drop Characteristics")
+    print("\n1.2 Create SRSRWI (Sample Review Spreadsheet) for Top FP Categories")
     
-    # Original concentration analysis (unchanged)
-    total_impact = category_impact['Impact_Score'].sum()
-    top_5_impact = category_impact.head(5)['Impact_Score'].sum()
-    concentration_ratio = top_5_impact / total_impact if total_impact > 0 else 0
+    # Original SRSRWI analysis (unchanged)
+    top_fp_categories = fp_summary.head(3)
     
-    # Distribution analysis
-    below_target = len(category_impact[category_impact['Precision'] < 0.70])
-    total_categories = len(category_impact)
+    srsrwi_data = []
     
-    print(f"Drop Concentration Analysis:")
-    print(f"  Top 5 categories account for {concentration_ratio:.1%} of total impact")
-    print(f"  {below_target}/{total_categories} categories below 70% target ({below_target/total_categories:.1%})")
-    
-    if concentration_ratio > 0.7:
-        print("  FINDING: Drop is CONCENTRATED in few high-impact categories")
-    elif below_target/total_categories > 0.6:
-        print("  FINDING: Drop is WIDESPREAD across many categories")
-    else:
-        print("  FINDING: Drop is MODERATE with mixed impact distribution")
-    
-    print("\n1.4 New Categories Analysis")
-    
-    # Original new category analysis (unchanged)
-    new_category_impact = df[df['Is_New_Category']].groupby(['Prosodica L1', 'Prosodica L2']).agg({
-        'Is_TP': ['sum', 'count'],
-        'Is_FP': 'sum'
-    }).reset_index()
-    
-    if len(new_category_impact) > 0:
-        new_category_impact.columns = ['L1_Category', 'L2_Category', 'TPs', 'Total_Flagged', 'FPs']
-        new_category_impact['Precision'] = np.where(
-            new_category_impact['Total_Flagged'] > 0,
-            new_category_impact['TPs'] / new_category_impact['Total_Flagged'],
-            0
-        )
+    for _, category in top_fp_categories.iterrows():
+        l1_cat = category['L1_Category']
+        l2_cat = category['L2_Category']
         
-        print("New Categories (added within 30 days) Performance:")
-        print(new_category_impact[['L1_Category', 'L2_Category', 'Precision', 'Total_Flagged']].round(3))
+        # Get FP samples for this category
+        category_fps = df[
+            (df['Primary Marker'] == 'FP') & 
+            (df['Prosodica L1'] == l1_cat) & 
+            (df['Prosodica L2'] == l2_cat)
+        ].head(10)  # Sample first 10 FPs
         
-        avg_new_precision = new_category_impact['Precision'].mean()
-        avg_overall_precision = category_impact['Precision'].mean()
-        print(f"Average new category precision: {avg_new_precision:.3f}")
-        print(f"Average overall precision: {avg_overall_precision:.3f}")
-        
-        if avg_new_precision < avg_overall_precision - 0.1:
-            print("  FINDING: New categories have significantly lower precision")
-        else:
-            print("  FINDING: New categories perform similarly to existing categories")
-    else:
-        print("No new categories detected in the analysis period")
-        print("(All categories were added more than 30 days before the call dates)")
+        for _, fp_row in category_fps.iterrows():
+            srsrwi_data.append({
+                'UUID': fp_row['UUID'],
+                'L1_Category': l1_cat,
+                'L2_Category': l2_cat,
+                'Customer_Transcript': fp_row['Customer Transcript'][:200] + '...',
+                'Agent_Transcript': fp_row['Agent Transcript'][:200] + '...',
+                'Transcript_Length': fp_row['Transcript_Length'],
+                'Has_Negation': fp_row['Customer_Negation_Count'] > 0,
+                'Has_Qualifying_Words': fp_row['Customer_Qualifying_Count'] > 0,
+                'Month': fp_row['Year_Month']
+            })
     
-    return monthly_category_precision, category_impact
-
-def analyze_volume_vs_performance_enhanced(df):
-    """Enhanced volume vs performance analysis with monthly breakdown"""
+    srsrwi_df = pd.DataFrame(srsrwi_data)
     
-    print("2.1 High-Volume vs Low Precision Correlation")
+    print(f"SRSRWI Sample Created: {len(srsrwi_df)} FP samples from top 3 categories")
+    print("Sample Structure:")
+    print(srsrwi_df[['UUID', 'L1_Category', 'L2_Category', 'Has_Negation', 'Has_Qualifying_Words']].head())
     
-    # Original volume-precision analysis (unchanged)
-    volume_precision = df.groupby(['Prosodica L1', 'Prosodica L2']).agg({
-        'Is_TP': ['sum', 'count'],
-        'Is_FP': 'sum'
-    }).reset_index()
+    print("\n1.3 Manual Review Pattern Identification")
     
-    volume_precision.columns = ['L1_Category', 'L2_Category', 'TPs', 'Volume', 'FPs']
-    volume_precision['Precision'] = np.where(
-        volume_precision['Volume'] > 0,
-        volume_precision['TPs'] / volume_precision['Volume'],
-        0
-    )
+    # Original automated pattern identification (unchanged)
+    fp_patterns = {}
     
-    # Correlation analysis
-    if len(volume_precision) > 3:
-        correlation = volume_precision['Volume'].corr(volume_precision['Precision'])
-        print(f"Volume-Precision Correlation: {correlation:.3f}")
-        
-        if correlation < -0.3:
-            print("  FINDING: NEGATIVE correlation - Higher volume categories have lower precision")
-        elif correlation > 0.3:
-            print("  FINDING: POSITIVE correlation - Higher volume categories have higher precision")
-        else:
-            print("  FINDING: WEAK correlation between volume and precision")
+    for l1_cat in df['Prosodica L1'].unique():
+        if pd.notna(l1_cat):
+            category_fps = df[(df['Primary Marker'] == 'FP') & (df['Prosodica L1'] == l1_cat)]
+            
+            if len(category_fps) > 5:
+                # Context issues
+                negation_rate = (category_fps['Customer_Negation_Count'] > 0).mean()
+                
+                # Agent vs customer confusion
+                agent_explanation_pattern = category_fps['Agent Transcript'].str.lower().str.contains(
+                    r'(explain|example|let me|suppose)', regex=True, na=False
+                ).mean()
+                
+                # Qualifying language
+                qualifying_rate = (category_fps['Customer_Qualifying_Count'] > 0).mean()
+                
+                fp_patterns[l1_cat] = {
+                    'total_fps': len(category_fps),
+                    'negation_rate': negation_rate,
+                    'agent_explanation_rate': agent_explanation_pattern,
+                    'qualifying_language_rate': qualifying_rate
+                }
     
-    # High-volume low-precision categories
-    high_volume_threshold = volume_precision['Volume'].quantile(0.75)
-    high_vol_low_prec = volume_precision[
-        (volume_precision['Volume'] >= high_volume_threshold) & 
-        (volume_precision['Precision'] < 0.70)
-    ]
+    print("Automated Pattern Detection Results:")
+    for category, patterns in fp_patterns.items():
+        print(f"\n{category} ({patterns['total_fps']} FPs):")
+        print(f"  Negation patterns: {patterns['negation_rate']:.1%}")
+        print(f"  Agent explanations: {patterns['agent_explanation_rate']:.1%}")
+        print(f"  Qualifying language: {patterns['qualifying_language_rate']:.1%}")
     
-    print(f"\nHigh-Volume (>{high_volume_threshold:.0f}) Low-Precision (<70%) Categories:")
-    if len(high_vol_low_prec) > 0:
-        print(high_vol_low_prec[['L1_Category', 'L2_Category', 'Volume', 'Precision']].round(3))
-    else:
-        print("No high-volume low-precision categories identified")
-    
-    print("\n2.2 Precision Drop vs Volume Spike Correlation")
-    
-    # Original monthly volume and precision trends (unchanged)
-    monthly_trends = df.groupby('Year_Month').agg({
-        'Is_TP': ['sum', 'count'],
-        'Is_FP': 'sum',
-        'variable5': 'nunique'
-    }).reset_index()
-    
-    monthly_trends.columns = ['Year_Month', 'TPs', 'Total_Flagged', 'FPs', 'Unique_Calls']
-    monthly_trends['Precision'] = np.where(
-        monthly_trends['Total_Flagged'] > 0,
-        monthly_trends['TPs'] / monthly_trends['Total_Flagged'],
-        0
-    )
-    
-    monthly_trends = monthly_trends.sort_values('Year_Month')
-    monthly_trends['Precision_Change'] = monthly_trends['Precision'].diff()
-    monthly_trends['Volume_Change'] = monthly_trends['Unique_Calls'].pct_change()
-    
-    print("Monthly Volume and Precision Changes:")
-    print(monthly_trends[['Year_Month', 'Precision', 'Precision_Change', 'Unique_Calls', 'Volume_Change']].round(3))
-    
-    # Volume spike analysis
-    volume_spike_threshold = monthly_trends['Volume_Change'].std() * 2
-    volume_spikes = monthly_trends[abs(monthly_trends['Volume_Change']) > volume_spike_threshold]
-    
-    if len(volume_spikes) > 0:
-        print(f"\nVolume Spikes (>{volume_spike_threshold:.1%} change) and Precision Impact:")
-        print(volume_spikes[['Year_Month', 'Volume_Change', 'Precision_Change']].round(3))
-    
-    print("\n2.3 Seasonal Patterns Analysis")
-    
-    # Original seasonal analysis (unchanged)
-    seasonal_analysis = df.groupby('Is_Holiday_Season').agg({
-        'Is_TP': ['sum', 'count'],
-        'Is_FP': 'sum',
-        'Transcript_Length': 'mean'
-    }).reset_index()
-    
-    seasonal_analysis.columns = ['Is_Holiday_Season', 'TPs', 'Total_Flagged', 'FPs', 'Avg_Length']
-    seasonal_analysis['Precision'] = np.where(
-        seasonal_analysis['Total_Flagged'] > 0,
-        seasonal_analysis['TPs'] / seasonal_analysis['Total_Flagged'],
-        0
-    )
-    seasonal_analysis['Season'] = seasonal_analysis['Is_Holiday_Season'].map({True: 'Holiday Season', False: 'Regular Season'})
-    
-    print("Seasonal Performance Analysis:")
-    print(seasonal_analysis[['Season', 'Precision', 'Total_Flagged', 'Avg_Length']].round(3))
-    
-    if len(seasonal_analysis) == 2:
-        holiday_precision = seasonal_analysis[seasonal_analysis['Is_Holiday_Season']]['Precision'].iloc[0]
-        regular_precision = seasonal_analysis[~seasonal_analysis['Is_Holiday_Season']]['Precision'].iloc[0]
-        seasonal_diff = holiday_precision - regular_precision
-        
-        print(f"Seasonal Impact: {seasonal_diff:+.3f} precision difference")
-        if abs(seasonal_diff) > 0.05:
-            print(f"  FINDING: Significant seasonal impact detected")
-    
-    # NEW: Monthly Transcript Length Analysis
+    # NEW: Monthly Qualifying Language Analysis
     create_monthly_insight_table(
         df,
-        "Transcript Length Patterns",
-        ['Transcript_Length'],
-        "Monthly transcript length analysis: How conversation length affects TP vs FP classification"
+        "Qualifying Language Patterns",
+        ['Customer_Qualifying_Count'],
+        "Monthly qualifying language analysis: Uncertainty indicators in TPs vs FPs"
     )
     
-    return volume_precision, monthly_trends
-
-def query_performance_review_enhanced(df, df_rules):
-    """Enhanced query performance review with monthly breakdown"""
+    print("\n1.4 Categorize FP Reasons")
     
-    print("3.1 Calculate Precision for All Complaint Categories")
+    # Original FP categorization (unchanged)
+    fp_reasons = df[df['Primary Marker'] == 'FP'].copy()
     
-    # Original all category precision (unchanged)
-    all_categories = df.groupby(['Prosodica L1', 'Prosodica L2']).agg({
-        'Is_TP': ['sum', 'count'],
-        'Is_FP': 'sum'
-    }).reset_index()
-    
-    all_categories.columns = ['L1_Category', 'L2_Category', 'TPs', 'Total_Flagged', 'FPs']
-    all_categories['Precision'] = np.where(
-        all_categories['Total_Flagged'] > 0,
-        all_categories['TPs'] / all_categories['Total_Flagged'],
-        0
-    )
-    all_categories['FP_Rate'] = np.where(
-        all_categories['Total_Flagged'] > 0,
-        all_categories['FPs'] / all_categories['Total_Flagged'],
-        0
+    # Context issues
+    fp_reasons['Context_Issue'] = (
+        (fp_reasons['Customer_Negation_Count'] > 0) |
+        (fp_reasons['Agent_Negation_Count'] > 0)
     )
     
-    # Focus on complaint categories
-    complaint_categories = all_categories[all_categories['L1_Category'] == 'complaints']
+    # Overly broad rules (high qualifying language suggests ambiguous cases)
+    fp_reasons['Overly_Broad_Rules'] = fp_reasons['Customer_Qualifying_Count'] > 2
     
-    print("All Complaint Category Performance:")
-    print(complaint_categories.sort_values('Precision')[['L2_Category', 'Precision', 'Total_Flagged', 'FP_Rate']].round(3))
+    # Agent vs Customer confusion
+    fp_reasons['Agent_Customer_Confusion'] = fp_reasons['Agent Transcript'].str.lower().str.contains(
+        r'(explain|example|let me|suppose|hypothetically)', regex=True, na=False
+    )
     
-    print("\n3.2 Identify Top 5 Categories Driving Precision Drop")
+    # New language patterns (unusual transcript characteristics)
+    median_length = df['Transcript_Length'].median()
+    fp_reasons['New_Language_Pattern'] = (
+        (fp_reasons['Transcript_Length'] > median_length * 2) |
+        (fp_reasons['Customer_Caps_Ratio'] > 0.3)
+    )
     
-    # Calculate drop impact
-    complaint_categories['Precision_Gap'] = 0.70 - complaint_categories['Precision']
-    complaint_categories['Drop_Impact'] = complaint_categories['Precision_Gap'] * complaint_categories['Total_Flagged']
-    
-    top_5_drop_drivers = complaint_categories.nlargest(5, 'Drop_Impact')
-    
-    print("Top 5 Categories Driving Precision Drop:")
-    print(top_5_drop_drivers[['L2_Category', 'Precision', 'Precision_Gap', 'Total_Flagged', 'Drop_Impact']].round(3))
-    
-    print("\n3.3 Flag Categories Consistently Below 70% Target")
-    
-    below_target = complaint_categories[complaint_categories['Precision'] < 0.70]
-    
-    print(f"Categories Below 70% Target ({len(below_target)}/{len(complaint_categories)}):")
-    if len(below_target) > 0:
-        print(below_target[['L2_Category', 'Precision', 'Total_Flagged']].round(3))
-        
-        # Risk assessment
-        high_risk = below_target[below_target['Total_Flagged'] >= below_target['Total_Flagged'].quantile(0.5)]
-        print(f"\nHigh-Risk Categories (below target + high volume): {len(high_risk)}")
-        if len(high_risk) > 0:
-            print(high_risk[['L2_Category', 'Precision', 'Total_Flagged']].round(3))
-    
-    # NEW: Monthly Category Performance Analysis
-    if len(complaint_categories) > 0:
-        # Focus on top problematic categories for monthly analysis
-        top_problem_categories = complaint_categories.nsmallest(3, 'Precision')['L2_Category'].tolist()
-        
-        if len(top_problem_categories) > 0:
-            print(f"\nMonthly Analysis for Top 3 Worst Performing Categories:")
-            print(f"Categories: {', '.join(top_problem_categories)}")
-            
-            # Filter data to focus on these categories
-            category_subset = df[df['Prosodica L2'].isin(top_problem_categories)]
-            
-            if len(category_subset) > 0:
-                create_monthly_insight_table(
-                    category_subset,
-                    "Worst Performing Categories",
-                    ['Is_TP', 'Is_FP'],
-                    "Monthly tracking of worst performing complaint categories"
-                )
-    
-    return all_categories, complaint_categories, top_5_drop_drivers
-
-def pattern_detection_analysis_enhanced(df):
-    """Enhanced pattern detection analysis with monthly breakdown"""
-    
-    print("4.1 Problem vs Non-Problem Months Comparison")
-    
-    # Original problem month analysis (unchanged)
-    unique_months = df['Year_Month'].dropna().unique()
-    
-    # Convert to strings and filter out any remaining NaN/None values
-    valid_months = []
-    for month in unique_months:
-        if pd.notna(month) and month is not None:
-            valid_months.append(str(month))
-    
-    # Sort the valid months
-    all_months = sorted(valid_months)
-    
-    if len(all_months) >= 4:
-        problem_months = all_months[-2:]  # Last 2 months
-        normal_months = all_months[:-2]   # Earlier months
-    elif len(all_months) >= 2:
-        problem_months = all_months[-1:]  # Last 1 month
-        normal_months = all_months[:-1]   # Earlier months
-    else:
-        print("Insufficient months for comparison")
-        return pd.DataFrame(), pd.DataFrame()
-    
-    print(f"Problem months: {problem_months}")
-    print(f"Normal months: {normal_months}")
-    
-    # Compare performance
-    problem_data = df[df['Year_Month'].astype(str).isin(problem_months)]
-    normal_data = df[df['Year_Month'].astype(str).isin(normal_months)]
-    
-    comparison = pd.DataFrame({
-        'Period': ['Normal', 'Problem'],
-        'Precision': [
-            normal_data['Is_TP'].sum() / len(normal_data) if len(normal_data) > 0 else 0,
-            problem_data['Is_TP'].sum() / len(problem_data) if len(problem_data) > 0 else 0
-        ],
-        'Volume': [len(normal_data), len(problem_data)],
-        'Avg_Transcript_Length': [
-            normal_data['Transcript_Length'].mean() if len(normal_data) > 0 else 0,
-            problem_data['Transcript_Length'].mean() if len(problem_data) > 0 else 0
-        ],
-        'Avg_Negation_Count': [
-            normal_data['Customer_Negation_Count'].mean() if len(normal_data) > 0 else 0,
-            problem_data['Customer_Negation_Count'].mean() if len(problem_data) > 0 else 0
+    # Summarize FP reasons
+    fp_reason_summary = pd.DataFrame({
+        'FP_Reason': ['Context Issues', 'Overly Broad Rules', 'Agent/Customer Confusion', 'New Language Patterns'],
+        'Count': [
+            fp_reasons['Context_Issue'].sum(),
+            fp_reasons['Overly_Broad_Rules'].sum(),
+            fp_reasons['Agent_Customer_Confusion'].sum(),
+            fp_reasons['New_Language_Pattern'].sum()
         ]
     })
     
-    print("\nPeriod Comparison:")
-    print(comparison.round(3))
+    fp_reason_summary['Percentage'] = fp_reason_summary['Count'] / len(fp_reasons) * 100
+    fp_reason_summary = fp_reason_summary.sort_values('Count', ascending=False)
     
-    # Statistical significance test
-    if len(normal_data) > 0 and len(problem_data) > 0:
-        from scipy.stats import chi2_contingency
-        
-        try:
-            contingency = np.array([
-                [normal_data['Is_TP'].sum(), normal_data['Is_FP'].sum()],
-                [problem_data['Is_TP'].sum(), problem_data['Is_FP'].sum()]
-            ])
-            
-            if contingency.min() > 0:
-                chi2, p_value, _, _ = chi2_contingency(contingency)
-                print(f"\nStatistical Significance Test:")
-                print(f"  Chi-square p-value: {p_value:.6f}")
-                print(f"  Significant difference: {'YES' if p_value < 0.05 else 'NO'}")
-        except:
-            print("Statistical test could not be performed")
+    print("FP Reason Categorization:")
+    print(fp_reason_summary.round(1))
     
-    # NEW: Monthly Pattern Analysis
+    # NEW: Monthly Agent Conversation Analysis
     create_monthly_insight_table(
         df,
-        "Overall Pattern Detection",
-        ['Customer_Negation_Count', 'Transcript_Length'],
-        "Monthly pattern detection: Key indicators for problem vs normal periods"
+        "Agent Explanation Contamination",
+        ['Customer_Agent_Ratio'],
+        "Monthly agent-customer ratio analysis: Agent explanations triggering false positives"
     )
     
-    print("\n4.2 Sudden vs Gradual Drop Analysis")
+    return fp_summary, srsrwi_df, fp_patterns, fp_reason_summary
+
+def validation_process_assessment_enhanced(df):
+    """Enhanced validation process assessment with monthly breakdown"""
     
-    # Original monthly precision trend analysis (unchanged)
-    monthly_precision = df.groupby('Year_Month').agg({
-        'Is_TP': ['sum', 'count']
+    print("2.1 Primary vs Secondary Validation Agreement Rates")
+    
+    # Original overall agreement analysis (unchanged)
+    secondary_data = df[df['Has_Secondary_Validation']].copy()
+    
+    if len(secondary_data) > 0:
+        overall_agreement = secondary_data['Primary_Secondary_Agreement'].mean()
+        total_secondary = len(secondary_data)
+        
+        print(f"Overall Validation Metrics:")
+        print(f"  Records with secondary validation: {total_secondary} ({total_secondary/len(df)*100:.1f}%)")
+        print(f"  Primary-Secondary agreement rate: {overall_agreement:.3f}")
+        
+        print("\n2.2 Categories with High Disagreement Rates")
+        
+        # Original category-wise agreement (unchanged)
+        category_agreement = secondary_data.groupby(['Prosodica L1', 'Prosodica L2']).agg({
+            'Primary_Secondary_Agreement': ['mean', 'count', 'std']
+        }).reset_index()
+        
+        category_agreement.columns = ['L1_Category', 'L2_Category', 'Agreement_Rate', 'Sample_Size', 'Agreement_Std']
+        category_agreement = category_agreement[category_agreement['Sample_Size'] >= 5]
+        category_agreement = category_agreement.sort_values('Agreement_Rate')
+        
+        print("Categories with Lowest Agreement Rates (min 5 samples):")
+        print(category_agreement.head(10)[['L1_Category', 'L2_Category', 'Agreement_Rate', 'Sample_Size']].round(3))
+        
+        # High disagreement categories
+        high_disagreement = category_agreement[category_agreement['Agreement_Rate'] < 0.7]
+        print(f"\nHigh Disagreement Categories (<70% agreement): {len(high_disagreement)}")
+        
+        print("\n2.3 Validation Consistency Over Time")
+        
+        # Original monthly validation trends (unchanged)
+        monthly_validation = secondary_data.groupby('Year_Month').agg({
+            'Primary_Secondary_Agreement': ['mean', 'count', 'std']
+        }).reset_index()
+        
+        monthly_validation.columns = ['Year_Month', 'Agreement_Rate', 'Sample_Size', 'Agreement_Std']
+        monthly_validation = monthly_validation.sort_values('Year_Month')
+        
+        print("Monthly Validation Agreement Trends:")
+        print(monthly_validation.round(3))
+        
+        # Trend analysis
+        if len(monthly_validation) > 2:
+            month_numbers = list(range(len(monthly_validation)))
+            agreement_values = monthly_validation['Agreement_Rate'].tolist()
+            
+            try:
+                correlation_matrix = np.corrcoef(month_numbers, agreement_values)
+                trend_correlation = correlation_matrix[0, 1]
+                
+                print(f"\nValidation Trend Analysis:")
+                print(f"  Correlation with time: {trend_correlation:.3f}")
+                
+                if trend_correlation < -0.5:
+                    print("  FINDING: Validation agreement is DECLINING over time")
+                elif trend_correlation > 0.5:
+                    print("  FINDING: Validation agreement is IMPROVING over time")
+                else:
+                    print("  FINDING: Validation agreement is STABLE over time")
+            except:
+                print("Trend analysis could not be performed")
+        
+        # NEW: Monthly Validation Quality Analysis
+        if len(secondary_data) > 0:
+            create_monthly_insight_table(
+                secondary_data,
+                "Validation Process Quality",
+                ['Primary_Secondary_Agreement'],
+                "Monthly validation agreement tracking: Process consistency over time"
+            )
+        
+        print("\n2.4 Validation Guidelines and Reviewer Changes Assessment")
+        
+        # Original reviewer consistency analysis (unchanged)
+        monthly_validation['Consistency_Score'] = 1 - monthly_validation['Agreement_Std'].fillna(0)
+        
+        print("Validation Consistency Metrics:")
+        print("(Higher scores indicate more consistent validation)")
+        print(monthly_validation[['Year_Month', 'Agreement_Rate', 'Consistency_Score']].round(3))
+        
+        # Identify potential guideline change points
+        agreement_changes = monthly_validation['Agreement_Rate'].diff().abs()
+        significant_changes = monthly_validation[agreement_changes > 0.1]
+        
+        if len(significant_changes) > 0:
+            print(f"\nSignificant Agreement Changes (>10% shift):")
+            print(significant_changes[['Year_Month', 'Agreement_Rate']].round(3))
+            print("  RECOMMENDATION: Review validation guidelines or reviewer training for these periods")
+        
+        return monthly_validation, category_agreement
+    
+    else:
+        print("No secondary validation data available")
+        return None, None
+
+def temporal_analysis_enhanced(df):
+    """Enhanced temporal pattern analysis with monthly breakdown"""
+    
+    print("3.1 FP Rates by Day of Week")
+    
+    # Original day of week analysis (unchanged)
+    dow_analysis = df.groupby('DayOfWeek').agg({
+        'Is_FP': ['sum', 'count', 'mean'],
+        'Is_TP': 'mean',
+        'Transcript_Length': 'mean'
     }).reset_index()
     
-    monthly_precision.columns = ['Year_Month', 'TPs', 'Total']
-    monthly_precision['Precision'] = monthly_precision['TPs'] / monthly_precision['Total']
+    dow_analysis.columns = ['DayOfWeek', 'FP_Count', 'Total_Records', 'FP_Rate', 'TP_Rate', 'Avg_Length']
     
-    # Convert Year_Month to string for consistent sorting
-    monthly_precision['Year_Month'] = monthly_precision['Year_Month'].astype(str)
-    monthly_precision = monthly_precision.sort_values('Year_Month')
-    monthly_precision['Precision_Change'] = monthly_precision['Precision'].diff()
+    # Reorder days
+    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    dow_analysis['Day_Order'] = dow_analysis['DayOfWeek'].map({day: i for i, day in enumerate(day_order)})
+    dow_analysis = dow_analysis.sort_values('Day_Order')
     
-    print("Monthly Precision Trend:")
-    print(monthly_precision[['Year_Month', 'Precision', 'Precision_Change']].round(3))
+    print("FP Rates by Day of Week:")
+    print(dow_analysis[['DayOfWeek', 'FP_Rate', 'Total_Records', 'Avg_Length']].round(3))
     
-    # Analyze drop pattern
-    if len(monthly_precision) > 1:
-        max_drop = monthly_precision['Precision_Change'].min()
-        avg_change = monthly_precision['Precision_Change'].mean()
-        
-        print(f"\nDrop Pattern Analysis:")
-        print(f"  Maximum single-month drop: {max_drop:.3f}")
-        print(f"  Average monthly change: {avg_change:.3f}")
-        
-        if max_drop < -0.1:
-            print("  FINDING: SUDDEN drop detected (>10% in single month)")
-        elif avg_change < -0.02:
-            print("  FINDING: GRADUAL decline detected (consistent negative trend)")
-        else:
-            print("  FINDING: STABLE performance with minor fluctuations")
+    # Identify anomalous days
+    mean_fp_rate = dow_analysis['FP_Rate'].mean()
+    std_fp_rate = dow_analysis['FP_Rate'].std()
+    anomalous_days = dow_analysis[abs(dow_analysis['FP_Rate'] - mean_fp_rate) > std_fp_rate]
     
-    return comparison, monthly_precision
+    if len(anomalous_days) > 0:
+        print(f"\nAnomalous Days (FP rate beyond 1 std dev):")
+        print(anomalous_days[['DayOfWeek', 'FP_Rate']].round(3))
+    
+    print("\n3.2 FP Rates by Week of Month")
+    
+    # Original week of month analysis (unchanged)
+    wom_analysis = df.groupby('WeekOfMonth').agg({
+        'Is_FP': ['sum', 'count', 'mean'],
+        'Is_TP': 'mean',
+        'Customer_Negation_Count': 'mean'
+    }).reset_index()
+    
+    wom_analysis.columns = ['WeekOfMonth', 'FP_Count', 'Total_Records', 'FP_Rate', 'TP_Rate', 'Avg_Negations']
+    
+    print("FP Rates by Week of Month:")
+    print(wom_analysis[['WeekOfMonth', 'FP_Rate', 'Total_Records', 'Avg_Negations']].round(3))
+    
+    # Month-end effect analysis
+    month_end_analysis = df.groupby('Is_Month_End').agg({
+        'Is_FP': 'mean',
+        'Is_TP': 'mean',
+        'Customer_Qualifying_Count': 'mean'
+    }).reset_index()
+    
+    month_end_analysis['Period'] = month_end_analysis['Is_Month_End'].map({True: 'Month End', False: 'Regular Days'})
+    
+    print("\nMonth-End Effect Analysis:")
+    print(month_end_analysis[['Period', 'Is_FP', 'Is_TP', 'Customer_Qualifying_Count']].round(3))
+    
+    # NEW: Monthly Temporal Pattern Analysis
+    create_monthly_insight_table(
+        df,
+        "Temporal Operational Patterns",
+        ['Customer_Question_Count', 'Customer_Exclamation_Count'],
+        "Monthly temporal analysis: Question and exclamation patterns indicating customer sentiment"
+    )
+    
+    print("\n3.3 Operational Changes Coinciding with Precision Drops")
+    
+    # Original operational analysis (unchanged)
+    operational_analysis = df.groupby('Year_Month').agg({
+        'Is_FP': 'mean',
+        'Is_TP': 'mean',
+        'variable5': 'nunique',
+        'Transcript_Length': 'mean',
+        'Customer_Agent_Ratio': 'mean'
+    }).reset_index()
+    
+    operational_analysis.columns = ['Year_Month', 'FP_Rate', 'TP_Rate', 'Unique_Calls', 'Avg_Length', 'Cust_Agent_Ratio']
+    operational_analysis = operational_analysis.sort_values('Year_Month')
+    
+    # Calculate changes
+    operational_analysis['FP_Rate_Change'] = operational_analysis['FP_Rate'].diff()
+    operational_analysis['Volume_Change'] = operational_analysis['Unique_Calls'].pct_change()
+    operational_analysis['Length_Change'] = operational_analysis['Avg_Length'].pct_change()
+    operational_analysis['Ratio_Change'] = operational_analysis['Cust_Agent_Ratio'].pct_change()
+    
+    print("Monthly Operational Metrics:")
+    print(operational_analysis[['Year_Month', 'FP_Rate', 'FP_Rate_Change', 'Volume_Change', 'Length_Change']].round(3))
+    
+    # Identify operational change indicators
+    significant_changes = operational_analysis[
+        (abs(operational_analysis['Volume_Change']) > 0.2) |  # 20% volume change
+        (abs(operational_analysis['Length_Change']) > 0.15) |  # 15% length change
+        (abs(operational_analysis['Ratio_Change']) > 0.3)      # 30% ratio change
+    ]
+    
+    if len(significant_changes) > 0:
+        print(f"\nMonths with Significant Operational Changes:")
+        print(significant_changes[['Year_Month', 'Volume_Change', 'Length_Change', 'FP_Rate_Change']].round(3))
+        print("  RECOMMENDATION: Investigate operational changes in these periods")
+    
+    return dow_analysis, wom_analysis, operational_analysis
