@@ -1,71 +1,113 @@
-# Cell 1: Data Preparation
-df_main, df_validation, df_rules = load_and_prepare_data()
-
-# Cell 2: Macro Level Analysis
-monthly_category_precision, category_impact = analyze_precision_drop_patterns_enhanced(df_main)
-
-# Cell 3: Volume vs Performance Analysis
-volume_precision, monthly_trends = analyze_volume_vs_performance_enhanced(df_main)
-
-# Cell 4: Query Performance Review
-all_categories, complaint_categories, top_5_drop_drivers = query_performance_review_enhanced(df_main, df_rules)
-
-# Cell 5: Pattern Detection Analysis
-comparison, monthly_precision = pattern_detection_analysis_enhanced(df_main)
-
-# Cell 6: False Positive Pattern Analysis
-fp_summary, srsrwi_df, fp_patterns, fp_reason_summary = fp_pattern_analysis_enhanced(df_main)
-
-# Cell 7: Validation Process Assessment
-monthly_validation, category_agreement = validation_process_assessment_enhanced(df_main)
-
-# Cell 8: Temporal Analysis
-dow_analysis, wom_analysis, operational_analysis = temporal_analysis_enhanced(df_main)
-
-# Cell 9: Category-Specific Investigation
-monthly_rule_performance, language_evolution = category_specific_investigation_enhanced(df_main, df_rules, complaint_categories)
-
-# Cell 10: Cross-Category Analysis
-transcript_categories, multi_category = cross_category_analysis_enhanced(df_main)
-
-# Cell 11: Content Pattern Analysis
-length_comparison, ratio_comparison, qualifying_comparison, pattern_df = content_pattern_analysis_enhanced(df_main)
-
-# Cell 12: Export All Results to Excel
-import pandas as pd
-from datetime import datetime
-
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-with pd.ExcelWriter(f'Complaints_Analysis_Results_{timestamp}.xlsx', engine='xlsxwriter') as writer:
+def cross_category_analysis_enhanced(df):
+    """Enhanced cross-category analysis with monthly breakdown"""
     
-    # Write each result to a separate sheet
-    monthly_category_precision.to_excel(writer, sheet_name='Monthly_Category_Precision', index=False)
-    category_impact.to_excel(writer, sheet_name='Category_Impact', index=False)
-    volume_precision.to_excel(writer, sheet_name='Volume_Precision', index=False)
-    monthly_trends.to_excel(writer, sheet_name='Monthly_Trends', index=False)
-    all_categories.to_excel(writer, sheet_name='All_Categories', index=False)
-    complaint_categories.to_excel(writer, sheet_name='Complaint_Categories', index=False)
-    top_5_drop_drivers.to_excel(writer, sheet_name='Top_5_Drop_Drivers', index=False)
-    comparison.to_excel(writer, sheet_name='Period_Comparison', index=False)
-    monthly_precision.to_excel(writer, sheet_name='Monthly_Precision', index=False)
-    fp_summary.to_excel(writer, sheet_name='FP_Summary', index=False)
-    srsrwi_df.to_excel(writer, sheet_name='SRSRWI_Sample', index=False)
-    fp_reason_summary.to_excel(writer, sheet_name='FP_Reason_Summary', index=False)
+    print("2.1 Multi-Category Transcript Analysis")
     
-    if monthly_validation is not None:
-        monthly_validation.to_excel(writer, sheet_name='Monthly_Validation', index=False)
-    if category_agreement is not None:
-        category_agreement.to_excel(writer, sheet_name='Category_Agreement', index=False)
+    # Original multi-category transcript analysis (unchanged)
+    transcript_categories = df.groupby('variable5').agg({
+        'Prosodica L1': 'nunique',
+        'Prosodica L2': 'nunique',
+        'Is_TP': 'mean',
+        'Is_FP': 'mean'
+    }).reset_index()
     
-    dow_analysis.to_excel(writer, sheet_name='Day_of_Week_Analysis', index=False)
-    wom_analysis.to_excel(writer, sheet_name='Week_of_Month_Analysis', index=False)
-    operational_analysis.to_excel(writer, sheet_name='Operational_Analysis', index=False)
-    transcript_categories.to_excel(writer, sheet_name='Transcript_Categories', index=False)
-    multi_category.to_excel(writer, sheet_name='Multi_Category', index=False)
-    length_comparison.to_excel(writer, sheet_name='Length_Comparison', index=False)
-    ratio_comparison.to_excel(writer, sheet_name='Ratio_Comparison', index=False)
-    qualifying_comparison.to_excel(writer, sheet_name='Qualifying_Comparison', index=False)
-    pattern_df.to_excel(writer, sheet_name='Pattern_Analysis', index=False)
-
-print(f"All results exported to: Complaints_Analysis_Results_{timestamp}.xlsx")
+    transcript_categories.columns = ['Transcript_ID', 'L1_Categories', 'L2_Categories', 'Avg_Precision', 'Avg_FP_Rate']
+    
+    # Multi-category transcripts
+    multi_category = transcript_categories[transcript_categories['L2_Categories'] > 1]
+    single_category = transcript_categories[transcript_categories['L2_Categories'] == 1]
+    
+    print(f"Multi-Category Transcripts Analysis:")
+    print(f"  Single category: {len(single_category)} transcripts")
+    print(f"  Multi-category: {len(multi_category)} transcripts")
+    
+    if len(multi_category) > 0 and len(single_category) > 0:
+        multi_precision = multi_category['Avg_Precision'].mean()
+        single_precision = single_category['Avg_Precision'].mean()
+        
+        print(f"  Single category avg precision: {single_precision:.3f}")
+        print(f"  Multi-category avg precision: {multi_precision:.3f}")
+        print(f"  Precision difference: {multi_precision - single_precision:+.3f}")
+        
+        if multi_precision < single_precision - 0.05:
+            print("  FINDING: Multi-category transcripts have LOWER precision")
+    
+    print("\n2.2 Category Overlap and Rule Conflicts")
+    
+    # FIXED: Filter out NaN values before processing category pairs
+    category_pairs = df.dropna(subset=['Prosodica L2']).groupby('variable5')['Prosodica L2'].apply(list).reset_index()
+    category_pairs['Category_Count'] = category_pairs['Prosodica L2'].apply(len)
+    
+    # Find common category combinations
+    multi_cat_pairs = category_pairs[category_pairs['Category_Count'] > 1]
+    
+    if len(multi_cat_pairs) > 0:
+        # Extract all category combinations
+        combinations = []
+        for categories in multi_cat_pairs['Prosodica L2']:
+            if len(categories) == 2:
+                # FIXED: Filter out any None/NaN values and convert to string before sorting
+                clean_categories = [str(cat) for cat in categories if pd.notna(cat) and cat is not None]
+                if len(clean_categories) == 2:
+                    combinations.append(tuple(sorted(clean_categories)))
+        
+        if combinations:
+            from collections import Counter
+            common_combinations = Counter(combinations).most_common(5)
+            
+            print("Most Common Category Combinations:")
+            for combo, count in common_combinations:
+                print(f"  {combo[0]} + {combo[1]}: {count} transcripts")
+                
+                # Check precision for this combination
+                combo_data = df[
+                    df['variable5'].isin(
+                        multi_cat_pairs[
+                            multi_cat_pairs['Prosodica L2'].apply(
+                                lambda x: len(x) == 2 and combo[0] in [str(cat) for cat in x if pd.notna(cat)] and combo[1] in [str(cat) for cat in x if pd.notna(cat)]
+                            )
+                        ]['variable5']
+                    )
+                ]
+                
+                if len(combo_data) > 0:
+                    combo_precision = combo_data['Is_TP'].mean()
+                    print(f"    Precision: {combo_precision:.3f}")
+        else:
+            print("No valid category combinations found after filtering")
+    else:
+        print("No multi-category transcripts found")
+    
+    # NEW: Monthly Cross-Category Analysis
+    create_monthly_insight_table(
+        df,
+        "Cross-Category Performance",
+        ['Is_TP', 'Is_FP'],
+        "Monthly cross-category analysis: Performance patterns across category interactions"
+    )
+    
+    print("\n2.3 New Category Cannibalization Analysis")
+    
+    # Original new category analysis (unchanged)
+    new_categories = df[df['Is_New_Category']]['Prosodica L2'].dropna().unique()
+    
+    if len(new_categories) > 0:
+        print(f"New Categories: {list(new_categories)}")
+        
+        for new_cat in new_categories:
+            # Performance of new category
+            new_cat_data = df[df['Prosodica L2'] == new_cat]
+            new_cat_precision = new_cat_data['Is_TP'].mean()
+            new_cat_volume = len(new_cat_data)
+            
+            print(f"\n{new_cat}:")
+            print(f"  Volume: {new_cat_volume}")
+            print(f"  Precision: {new_cat_precision:.3f}")
+            
+            # Check if similar existing categories lost volume
+            # (This would require more sophisticated semantic similarity analysis)
+            print(f"  Cannibalization analysis: Requires semantic similarity comparison")
+    else:
+        print("No new categories identified for cannibalization analysis")
+    
+    return transcript_categories, multi_category
