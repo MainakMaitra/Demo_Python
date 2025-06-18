@@ -1,3 +1,34 @@
+# Core Data Handling
+pandas>=1.3.0
+numpy>=1.21.0
+
+# NLP
+spacy>=3.5.0
+transformers>=4.36.0
+
+# Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+wordcloud>=1.8.0
+plotly>=5.10.0
+networkx>=2.6.3
+
+# Optional: for Jupyter display consistency
+ipython>=7.0.0
+
+# Required spaCy model
+# This is not installed via pip, so include as instruction:
+# RUN: python -m spacy download en_core_web_sm
+
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+
+
+
+
+
+
+
 # ============================================================================
 # PART 1: CONTEXTUAL NEGATION SCOPE DETECTION
 # Advanced NLP implementation to detect negation patterns and their scope
