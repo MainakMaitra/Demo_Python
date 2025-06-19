@@ -28,3 +28,6 @@ widgetsnbextension==4.0.10
 
 # === Compatibility Fixes ===
 packaging==24.0
+
+
+python -m jupyter_contrib_nbextensions.application install --user
