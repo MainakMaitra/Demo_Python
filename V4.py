@@ -31,3 +31,4 @@ packaging==24.0
 
 
 python -m jupyter_contrib_nbextensions.application install --user
+https://www.lfd.uci.edu/~gohlke/pythonlibs/#jupyter-contrib-core
