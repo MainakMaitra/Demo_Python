@@ -1,14 +1,30 @@
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#   | Method Name                          | Process / Technology                                    | Input Data                                  | Visualization
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-1   | Semantic Drift Analysis              | Sentence-BERT, Cosine, UMAP, Centroid calc              | Oct-Dec vs Jan-Mar transcripts (TP/FP)      | UMAP scatter, 3D trajectory, drift vectors, contour maps
-2   | Dynamic Topic Modeling               | BERTopic, HDBSCAN, c-TF-IDF, topic similarity           | FP/TP (Pre/Post), customer/agent texts      | Sankey, topic bubbles, word clouds, heatmaps
-3   | Linguistic Complexity Profiling      | spaCy parsing, TextStat, custom feats, Random Forest    | Labeled transcripts, speaker/month/category | Bar charts, SHAP plots, radar, time-series evolution
-4   | Negation Scope Detection             | Fine-tuned BERT, dependency parse, rules                | Sentences with negations, 5-word context    | Histograms, word networks, pie charts, scope highlights
-5   | Dialogue Flow Analysis               | DialoGPT, turn metrics, dialogue acts, Markov chains    | QA pairs, turn sequences, speaker segments  | Flow diagrams, violin plots, state graphs, dominance charts
-6   | Language Evolution by Category       | SetFit few-shot, transfer learning, error analysis      | Top 5 categories, 8-shot, pre/post test     | Confusion matrix, timeline, error clusters, confidence plots
-7   | Temporal Linguistic Shifts           | Time series decomp, ARIMA, changepoint, correlation     | Weekly features, precision, volume          | Time series, changepoints, heatmaps, anomaly plots
-8   | Emotion & Sentiment Dynamics         | RoBERTa, VADER, frustration/formality detection         | Customer/Agent transcripts (Pre/Post)       | Emotion wheels, sentiment rivers, category box plots, heatmaps
-9   | Query Pattern Mining                 | Regex, n-grams, templates, frequency analysis           | All transcripts, keywords, question forms   | Bar charts, co-occurrence graphs, pattern timelines
-10  | Predictive Risk Scoring              | XGBoost, feature engineering, calibration               | Engineered features, labels, real-time      | ROC curves, calibration plots, risk dashboards
--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# === Classic Notebook (works with nbextensions) ===
+notebook==6.5.6
+jupyter_contrib_nbextensions==0.5.1
+jupyter_nbextensions_configurator==0.6.4
+
+# === Jupyter Core Packages (Python 3.12 compatible) ===
+jupyter_client==8.6.0
+jupyter_core==5.5.0
+jupyter_server==1.24.0
+
+# === JupyterLab (3.x, compatible with notebook 6.5.6) ===
+jupyterlab==3.6.6
+jupyterlab_server==2.24.0
+jupyterlab_widgets==1.1.7
+
+# === Kernel + Execution Support ===
+ipykernel==6.29.4
+ipython==8.12.3
+traitlets==5.9.0
+
+# === Notebook File Handling ===
+nbconvert==6.5.4
+nbformat==5.9.2
+
+# === Widgets and UI Add-ons ===
+ipywidgets==8.1.2
+widgetsnbextension==4.0.10
+
+# === Compatibility Fixes ===
+packaging==24.0
