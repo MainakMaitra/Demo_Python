@@ -1,313 +1,200 @@
 # =============================================================================
-# ADDITIONAL VISUALIZATION FUNCTIONS FOR DYNAMIC NEGATION ANALYSIS
+# FIXES FOR VISUALIZATION ISSUES
+# Replace the problematic functions with these corrected versions
 # =============================================================================
 
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from wordcloud import WordCloud
-import os
-
-def create_comprehensive_visualizations(negation_df, pattern_analysis_df, output_dir='dynamic_negation_visualizations'):
-    """
-    Create comprehensive visualizations for dynamic negation analysis
-    Enhanced version without hardcoded patterns
-    """
+def create_performance_heatmaps_fixed(negation_df, output_dir):
+    """Fixed performance heatmaps - handles data structure issues"""
     
-    print("\n" + "="*60)
-    print("CREATING COMPREHENSIVE VISUALIZATIONS")
-    print("="*60)
+    print("Creating performance heatmaps (FIXED)...")
     
-    os.makedirs(output_dir, exist_ok=True)
+    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
     
-    if len(negation_df) == 0:
-        print("No negation data to visualize!")
-        return
+    # Debug: Check data structure
+    print(f"Columns in negation_df: {list(negation_df.columns)}")
+    print(f"Unique Primary_Marker values: {negation_df['Primary_Marker'].unique()}")
+    print(f"Sample data shape: {negation_df.shape}")
     
-    # 1. PATTERN DISTRIBUTION ANALYSIS
-    create_pattern_distribution_viz(negation_df, pattern_analysis_df, output_dir)
-    
-    # 2. TEMPORAL ANALYSIS
-    create_temporal_analysis_viz(negation_df, output_dir)
-    
-    # 3. SPEAKER ANALYSIS
-    create_speaker_analysis_viz(negation_df, output_dir)
-    
-    # 4. CONTEXT WORD CLOUDS
-    create_context_wordclouds(negation_df, pattern_analysis_df, output_dir)
-    
-    # 5. PERFORMANCE HEATMAPS
-    create_performance_heatmaps(negation_df, output_dir)
-    
-    # 6. INTERACTIVE DASHBOARD
-    create_interactive_dashboard(negation_df, pattern_analysis_df, output_dir)
-    
-    print(f"All visualizations saved to {output_dir}/")
-
-def create_pattern_distribution_viz(negation_df, pattern_analysis_df, output_dir):
-    """Create pattern distribution visualizations"""
-    
-    print("Creating pattern distribution visualizations...")
-    
-    # Enhanced version of the basic pattern visualization
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-    
-    # 1. Pattern Cluster Distribution by TP/FP
-    if 'Pattern_Cluster' in negation_df.columns:
-        tp_patterns = negation_df[negation_df['Primary_Marker'] == 'TP']['Pattern_Cluster'].value_counts()
-        fp_patterns = negation_df[negation_df['Primary_Marker'] == 'FP']['Pattern_Cluster'].value_counts()
+    # 1. FIXED: Period vs Negation Word Performance
+    if 'Period' in negation_df.columns and 'Negation_Word' in negation_df.columns:
+        # Create a proper crosstab with correct aggregation
+        period_word_data = []
         
-        # Align indices
-        all_patterns = sorted(set(list(tp_patterns.index) + list(fp_patterns.index)))
-        tp_counts = [tp_patterns.get(p, 0) for p in all_patterns]
-        fp_counts = [fp_patterns.get(p, 0) for p in all_patterns]
+        for period in negation_df['Period'].unique():
+            for word in negation_df['Negation_Word'].value_counts().head(8).index:  # Top 8 words only
+                subset = negation_df[(negation_df['Period'] == period) & (negation_df['Negation_Word'] == word)]
+                if len(subset) > 0:
+                    tp_count = len(subset[subset['Primary_Marker'] == 'TP'])
+                    total_count = len(subset)
+                    tp_rate = tp_count / total_count if total_count > 0 else 0
+                    
+                    period_word_data.append({
+                        'Period': period,
+                        'Negation_Word': word,
+                        'TP_Rate': tp_rate,
+                        'Total_Count': total_count
+                    })
         
-        x = np.arange(len(all_patterns))
-        width = 0.35
+        if period_word_data:
+            heatmap_df = pd.DataFrame(period_word_data)
+            # Pivot to create heatmap matrix
+            heatmap_matrix = heatmap_df.pivot(index='Period', columns='Negation_Word', values='TP_Rate').fillna(0)
+            
+            if not heatmap_matrix.empty:
+                sns.heatmap(heatmap_matrix, annot=True, fmt='.2f', cmap='RdYlGn', 
+                           ax=axes[0], cbar_kws={'label': 'TP Rate'}, vmin=0, vmax=1)
+                axes[0].set_title('TP Rate: Period vs Negation Word')
+                axes[0].set_ylabel('Period')
+                axes[0].set_xlabel('Negation Word')
+            else:
+                axes[0].text(0.5, 0.5, 'No data for Period vs Word analysis', 
+                            ha='center', va='center', transform=axes[0].transAxes)
+        else:
+            axes[0].text(0.5, 0.5, 'Insufficient data for heatmap', 
+                        ha='center', va='center', transform=axes[0].transAxes)
+    else:
+        axes[0].text(0.5, 0.5, 'Missing Period or Negation_Word columns', 
+                    ha='center', va='center', transform=axes[0].transAxes)
+    
+    # 2. FIXED: Speaker vs Pattern Performance
+    if 'Pattern_Cluster' in negation_df.columns and 'Speaker' in negation_df.columns:
+        speaker_pattern_data = []
         
-        axes[0,0].bar(x - width/2, tp_counts, width, label='TP', alpha=0.8, color='green')
-        axes[0,0].bar(x + width/2, fp_counts, width, label='FP', alpha=0.8, color='red')
-        axes[0,0].set_xlabel('Pattern Cluster')
-        axes[0,0].set_ylabel('Count')
-        axes[0,0].set_title('Pattern Distribution: TP vs FP')
-        axes[0,0].legend()
-        axes[0,0].set_xticks(x)
-        axes[0,0].set_xticklabels(all_patterns)
-    
-    # 2. Negation Word Frequency
-    negation_word_counts = negation_df['Negation_Word'].value_counts().head(10)
-    axes[0,1].barh(range(len(negation_word_counts)), negation_word_counts.values, color='skyblue')
-    axes[0,1].set_yticks(range(len(negation_word_counts)))
-    axes[0,1].set_yticklabels(negation_word_counts.index)
-    axes[0,1].set_xlabel('Frequency')
-    axes[0,1].set_title('Top 10 Negation Words')
-    
-    # 3. Speaker Distribution
-    speaker_dist = negation_df['Speaker'].value_counts()
-    axes[0,2].pie(speaker_dist.values, labels=speaker_dist.index, autopct='%1.1f%%', 
-                  colors=['lightblue', 'lightcoral'])
-    axes[0,2].set_title('Negations by Speaker')
-    
-    # 4. Period Comparison
-    period_marker = pd.crosstab(negation_df['Period'], negation_df['Primary_Marker'])
-    period_marker.plot(kind='bar', ax=axes[1,0], color=['green', 'red'], alpha=0.7)
-    axes[1,0].set_title('Period vs Primary Marker')
-    axes[1,0].set_xlabel('Period')
-    axes[1,0].set_ylabel('Count')
-    axes[1,0].legend(title='Primary Marker')
-    axes[1,0].tick_params(axis='x', rotation=45)
-    
-    # 5. Text Length Distribution
-    if 'Text_Length' in negation_df.columns:
-        tp_lengths = negation_df[negation_df['Primary_Marker'] == 'TP']['Text_Length']
-        fp_lengths = negation_df[negation_df['Primary_Marker'] == 'FP']['Text_Length']
+        for speaker in negation_df['Speaker'].unique():
+            for pattern in negation_df['Pattern_Cluster'].unique():
+                subset = negation_df[(negation_df['Speaker'] == speaker) & (negation_df['Pattern_Cluster'] == pattern)]
+                if len(subset) > 0:
+                    tp_count = len(subset[subset['Primary_Marker'] == 'TP'])
+                    total_count = len(subset)
+                    tp_rate = tp_count / total_count if total_count > 0 else 0
+                    
+                    speaker_pattern_data.append({
+                        'Speaker': speaker,
+                        'Pattern_Cluster': pattern,
+                        'TP_Rate': tp_rate,
+                        'Total_Count': total_count
+                    })
         
-        axes[1,1].hist(tp_lengths, bins=30, alpha=0.7, label='TP', color='green', density=True)
-        axes[1,1].hist(fp_lengths, bins=30, alpha=0.7, label='FP', color='red', density=True)
-        axes[1,1].set_xlabel('Text Length')
-        axes[1,1].set_ylabel('Density')
-        axes[1,1].set_title('Text Length Distribution')
-        axes[1,1].legend()
-    
-    # 6. Position in Text Analysis
-    if 'Position_In_Text' in negation_df.columns:
-        tp_positions = negation_df[negation_df['Primary_Marker'] == 'TP']['Position_In_Text']
-        fp_positions = negation_df[negation_df['Primary_Marker'] == 'FP']['Position_In_Text']
-        
-        axes[1,2].hist(tp_positions, bins=20, alpha=0.7, label='TP', color='green', density=True)
-        axes[1,2].hist(fp_positions, bins=20, alpha=0.7, label='FP', color='red', density=True)
-        axes[1,2].set_xlabel('Position in Text (0=start, 1=end)')
-        axes[1,2].set_ylabel('Density')
-        axes[1,2].set_title('Negation Position Distribution')
-        axes[1,2].legend()
+        if speaker_pattern_data:
+            heatmap_df2 = pd.DataFrame(speaker_pattern_data)
+            heatmap_matrix2 = heatmap_df2.pivot(index='Speaker', columns='Pattern_Cluster', values='TP_Rate').fillna(0)
+            
+            if not heatmap_matrix2.empty:
+                sns.heatmap(heatmap_matrix2, annot=True, fmt='.2f', cmap='RdYlGn', 
+                           ax=axes[1], cbar_kws={'label': 'TP Rate'}, vmin=0, vmax=1)
+                axes[1].set_title('TP Rate: Speaker vs Pattern')
+                axes[1].set_ylabel('Speaker')
+                axes[1].set_xlabel('Pattern Cluster')
+            else:
+                axes[1].text(0.5, 0.5, 'No data for Speaker vs Pattern analysis', 
+                            ha='center', va='center', transform=axes[1].transAxes)
+        else:
+            axes[1].text(0.5, 0.5, 'Insufficient data for heatmap', 
+                        ha='center', va='center', transform=axes[1].transAxes)
+    else:
+        axes[1].text(0.5, 0.5, 'Missing Pattern_Cluster or Speaker columns', 
+                    ha='center', va='center', transform=axes[1].transAxes)
     
     plt.tight_layout()
-    plt.savefig(f'{output_dir}/pattern_distribution_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'{output_dir}/performance_heatmaps_fixed.png', dpi=300, bbox_inches='tight')
     plt.close()
 
-def create_temporal_analysis_viz(negation_df, output_dir):
-    """Create temporal analysis visualizations"""
+def create_context_wordclouds_fixed(negation_df, pattern_analysis_df, output_dir):
+    """Fixed word clouds - handles missing patterns and context issues"""
     
-    print("Creating temporal analysis...")
-    
-    # Monthly evolution analysis
-    if 'Year_Month' in negation_df.columns:
-        monthly_stats = negation_df.groupby(['Year_Month', 'Primary_Marker']).agg({
-            'UUID': 'count',
-            'Negation_Word': lambda x: len(x.unique())
-        }).reset_index()
-        monthly_stats.columns = ['Year_Month', 'Primary_Marker', 'Volume', 'Unique_Negations']
-        
-        # Create interactive plot
-        fig = make_subplots(
-            rows=2, cols=2,
-            subplot_titles=('Volume Over Time', 'Unique Negations Over Time',
-                           'TP/FP Ratio Over Time', 'Cumulative Volume'),
-            specs=[[{"secondary_y": False}, {"secondary_y": False}],
-                   [{"secondary_y": False}, {"secondary_y": False}]]
-        )
-        
-        # Volume trend
-        tp_monthly = monthly_stats[monthly_stats['Primary_Marker'] == 'TP']
-        fp_monthly = monthly_stats[monthly_stats['Primary_Marker'] == 'FP']
-        
-        fig.add_trace(
-            go.Scatter(x=tp_monthly['Year_Month'], y=tp_monthly['Volume'],
-                      mode='lines+markers', name='TP Volume', line=dict(color='green')),
-            row=1, col=1
-        )
-        
-        fig.add_trace(
-            go.Scatter(x=fp_monthly['Year_Month'], y=fp_monthly['Volume'],
-                      mode='lines+markers', name='FP Volume', line=dict(color='red')),
-            row=1, col=1
-        )
-        
-        # Unique negations
-        fig.add_trace(
-            go.Scatter(x=tp_monthly['Year_Month'], y=tp_monthly['Unique_Negations'],
-                      mode='lines+markers', name='TP Unique', line=dict(color='darkgreen')),
-            row=1, col=2
-        )
-        
-        fig.add_trace(
-            go.Scatter(x=fp_monthly['Year_Month'], y=fp_monthly['Unique_Negations'],
-                      mode='lines+markers', name='FP Unique', line=dict(color='darkred')),
-            row=1, col=2
-        )
-        
-        # TP/FP Ratio
-        ratio_data = []
-        for month in tp_monthly['Year_Month'].unique():
-            tp_vol = tp_monthly[tp_monthly['Year_Month'] == month]['Volume'].sum()
-            fp_vol = fp_monthly[fp_monthly['Year_Month'] == month]['Volume'].sum()
-            ratio = tp_vol / (fp_vol + 1)  # Add 1 to avoid division by zero
-            ratio_data.append({'Month': month, 'Ratio': ratio})
-        
-        ratio_df = pd.DataFrame(ratio_data)
-        fig.add_trace(
-            go.Scatter(x=ratio_df['Month'], y=ratio_df['Ratio'],
-                      mode='lines+markers', name='TP/FP Ratio', line=dict(color='blue')),
-            row=2, col=1
-        )
-        
-        # Cumulative volume
-        tp_cumsum = tp_monthly['Volume'].cumsum()
-        fp_cumsum = fp_monthly['Volume'].cumsum()
-        
-        fig.add_trace(
-            go.Scatter(x=tp_monthly['Year_Month'], y=tp_cumsum,
-                      mode='lines', name='TP Cumulative', fill='tonexty', 
-                      line=dict(color='green'), opacity=0.7),
-            row=2, col=2
-        )
-        
-        fig.add_trace(
-            go.Scatter(x=fp_monthly['Year_Month'], y=fp_cumsum,
-                      mode='lines', name='FP Cumulative', 
-                      line=dict(color='red'), opacity=0.7),
-            row=2, col=2
-        )
-        
-        fig.update_layout(height=800, showlegend=True, title_text="Temporal Analysis of Negation Patterns")
-        fig.write_html(f'{output_dir}/temporal_analysis.html')
-
-def create_speaker_analysis_viz(negation_df, output_dir):
-    """Create speaker-specific analysis"""
-    
-    print("Creating speaker analysis...")
-    
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    
-    # 1. Speaker vs Primary Marker
-    speaker_marker = pd.crosstab(negation_df['Speaker'], negation_df['Primary_Marker'])
-    speaker_marker_pct = speaker_marker.div(speaker_marker.sum(axis=1), axis=0) * 100
-    
-    speaker_marker_pct.plot(kind='bar', ax=axes[0,0], color=['green', 'red'], alpha=0.7)
-    axes[0,0].set_title('Speaker Performance (% TP vs FP)')
-    axes[0,0].set_ylabel('Percentage')
-    axes[0,0].legend(title='Primary Marker')
-    axes[0,0].tick_params(axis='x', rotation=45)
-    
-    # 2. Negation Words by Speaker
-    customer_words = negation_df[negation_df['Speaker'] == 'customer']['Negation_Word'].value_counts().head(8)
-    agent_words = negation_df[negation_df['Speaker'] == 'agent']['Negation_Word'].value_counts().head(8)
-    
-    axes[0,1].barh(range(len(customer_words)), customer_words.values, color='lightblue', alpha=0.7)
-    axes[0,1].set_yticks(range(len(customer_words)))
-    axes[0,1].set_yticklabels(customer_words.index)
-    axes[0,1].set_title('Top Customer Negation Words')
-    
-    # 3. Agent negation words
-    axes[1,0].barh(range(len(agent_words)), agent_words.values, color='lightcoral', alpha=0.7)
-    axes[1,0].set_yticks(range(len(agent_words)))
-    axes[1,0].set_yticklabels(agent_words.index)
-    axes[1,0].set_title('Top Agent Negation Words')
-    
-    # 4. Speaker pattern over time
-    if 'Year_Month' in negation_df.columns:
-        speaker_time = negation_df.groupby(['Year_Month', 'Speaker']).size().unstack(fill_value=0)
-        speaker_time.plot(kind='bar', ax=axes[1,1], alpha=0.7)
-        axes[1,1].set_title('Speaker Activity Over Time')
-        axes[1,1].set_ylabel('Negation Count')
-        axes[1,1].tick_params(axis='x', rotation=45)
-        axes[1,1].legend(title='Speaker')
-    
-    plt.tight_layout()
-    plt.savefig(f'{output_dir}/speaker_analysis.png', dpi=300, bbox_inches='tight')
-    plt.close()
-
-def create_context_wordclouds(negation_df, pattern_analysis_df, output_dir):
-    """Create context word clouds for different patterns"""
-    
-    print("Creating context word clouds...")
+    print("Creating context word clouds (FIXED)...")
     
     if 'Pattern_Cluster' not in negation_df.columns:
         print("No pattern clusters found for word clouds")
         return
     
-    # Get top patterns by volume
-    top_patterns = pattern_analysis_df.nlargest(4, 'Total_Count')['Cluster_ID'].tolist()
+    # Debug information
+    print(f"Available pattern clusters: {sorted(negation_df['Pattern_Cluster'].unique())}")
+    print(f"Pattern analysis clusters: {sorted(pattern_analysis_df['Cluster_ID'].unique()) if len(pattern_analysis_df) > 0 else 'None'}")
     
-    n_patterns = len(top_patterns)
-    if n_patterns == 0:
+    # Get all available patterns (not just top ones)
+    if len(pattern_analysis_df) > 0:
+        available_patterns = sorted(pattern_analysis_df['Cluster_ID'].unique())
+    else:
+        available_patterns = sorted(negation_df['Pattern_Cluster'].unique())
+    
+    # Filter out patterns with insufficient data
+    valid_patterns = []
+    for pattern_id in available_patterns:
+        pattern_data = negation_df[negation_df['Pattern_Cluster'] == pattern_id]
+        if len(pattern_data) >= 5:  # Minimum 5 instances
+            # Check if context data exists
+            contexts = pattern_data['Context'].dropna()
+            if len(contexts) > 0 and contexts.str.len().sum() > 100:  # At least 100 characters total
+                valid_patterns.append(pattern_id)
+            else:
+                print(f"Pattern {pattern_id}: Insufficient context data")
+        else:
+            print(f"Pattern {pattern_id}: Only {len(pattern_data)} instances (need >= 5)")
+    
+    print(f"Valid patterns for word clouds: {valid_patterns}")
+    
+    if len(valid_patterns) == 0:
+        print("No patterns have sufficient data for word clouds")
         return
     
-    fig, axes = plt.subplots(2, max(2, n_patterns//2 + n_patterns%2), figsize=(16, 8))
+    # Create subplot grid
+    n_patterns = len(valid_patterns)
+    n_cols = min(3, n_patterns)  # Max 3 columns
+    n_rows = (n_patterns + n_cols - 1) // n_cols  # Ceiling division
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5*n_cols, 4*n_rows))
+    
+    # Handle single subplot case
     if n_patterns == 1:
         axes = [axes]
-    elif n_patterns <= 2:
-        axes = axes.reshape(-1)
+    elif n_rows == 1:
+        axes = axes if n_cols > 1 else [axes]
+    else:
+        axes = axes.flatten()
     
-    for i, pattern_id in enumerate(top_patterns[:4]):  # Max 4 word clouds
-        row = i // 2
-        col = i % 2
-        
-        if n_patterns <= 2:
-            ax = axes[i]
-        else:
-            ax = axes[row, col]
+    for i, pattern_id in enumerate(valid_patterns):
+        ax = axes[i] if n_patterns > 1 else axes[0]
         
         # Get contexts for this pattern
-        pattern_contexts = negation_df[negation_df['Pattern_Cluster'] == pattern_id]['Context'].str.cat(sep=' ')
+        pattern_contexts = negation_df[negation_df['Pattern_Cluster'] == pattern_id]['Context'].dropna()
         
-        if pattern_contexts and len(pattern_contexts.strip()) > 0:
+        if len(pattern_contexts) > 0:
+            # Combine all contexts
+            combined_text = ' '.join(pattern_contexts.astype(str))
+            
             # Clean text for word cloud
             import re
-            clean_text = re.sub(r'[^\w\s]', ' ', pattern_contexts.lower())
-            clean_text = ' '.join(clean_text.split())  # Remove extra whitespace
+            # Remove common stopwords and clean
+            clean_text = re.sub(r'[^\w\s]', ' ', combined_text.lower())
+            clean_text = ' '.join([word for word in clean_text.split() 
+                                 if len(word) > 2 and word not in ['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'man', 'end', 'few', 'got', 'let', 'put', 'say', 'she', 'too', 'use']])
             
             if len(clean_text) > 10:  # Only create if sufficient text
-                wordcloud = WordCloud(
-                    width=400, height=300, 
-                    background_color='white',
-                    max_words=50,
-                    relative_scaling=0.5
-                ).generate(clean_text)
-                
-                ax.imshow(wordcloud, interpolation='bilinear')
-                ax.set_title(f'Pattern {pattern_id} Context\n({len(negation_df[negation_df["Pattern_Cluster"] == pattern_id])} instances)')
-                ax.axis('off')
+                try:
+                    wordcloud = WordCloud(
+                        width=400, height=300, 
+                        background_color='white',
+                        max_words=40,
+                        relative_scaling=0.5,
+                        colormap='viridis'
+                    ).generate(clean_text)
+                    
+                    ax.imshow(wordcloud, interpolation='bilinear')
+                    
+                    # Get pattern info for title
+                    pattern_count = len(negation_df[negation_df['Pattern_Cluster'] == pattern_id])
+                    tp_count = len(negation_df[(negation_df['Pattern_Cluster'] == pattern_id) & (negation_df['Primary_Marker'] == 'TP')])
+                    tp_rate = tp_count / pattern_count if pattern_count > 0 else 0
+                    
+                    ax.set_title(f'Pattern {pattern_id}\n{pattern_count} instances (TP: {tp_rate:.1%})', fontsize=10)
+                    ax.axis('off')
+                    
+                except Exception as e:
+                    print(f"Error creating wordcloud for pattern {pattern_id}: {e}")
+                    ax.text(0.5, 0.5, f'Pattern {pattern_id}\nWordcloud error', 
+                           ha='center', va='center', transform=ax.transAxes)
+                    ax.axis('off')
             else:
                 ax.text(0.5, 0.5, f'Pattern {pattern_id}\nInsufficient text', 
                        ha='center', va='center', transform=ax.transAxes)
@@ -318,174 +205,242 @@ def create_context_wordclouds(negation_df, pattern_analysis_df, output_dir):
             ax.axis('off')
     
     # Hide empty subplots
-    if n_patterns < 4:
-        for i in range(n_patterns, 4):
-            row = i // 2
-            col = i % 2
-            if n_patterns > 2:
-                axes[row, col].axis('off')
+    for i in range(len(valid_patterns), len(axes)):
+        axes[i].axis('off')
     
     plt.tight_layout()
-    plt.savefig(f'{output_dir}/pattern_context_wordclouds.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'{output_dir}/pattern_context_wordclouds_fixed.png', dpi=300, bbox_inches='tight')
     plt.close()
+    
+    print(f"Created word clouds for {len(valid_patterns)} patterns")
 
-def create_performance_heatmaps(negation_df, output_dir):
-    """Create performance heatmaps"""
+def create_temporal_analysis_viz_fixed(negation_df, output_dir):
+    """Fixed temporal analysis - addresses the unique negations calculation"""
     
-    print("Creating performance heatmaps...")
+    print("Creating temporal analysis (FIXED)...")
     
-    fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+    # Monthly evolution analysis
+    if 'Year_Month' not in negation_df.columns:
+        print("No Year_Month column found")
+        return
     
-    # 1. Period vs Negation Word Performance
-    if 'Period' in negation_df.columns:
-        period_word_perf = pd.crosstab(
-            negation_df['Period'], 
-            negation_df['Negation_Word'], 
-            negation_df['Primary_Marker'], 
-            aggfunc='count'
-        ).fillna(0)
-        
-        if 'TP' in period_word_perf.columns:
-            tp_counts = period_word_perf['TP']
-            total_counts = period_word_perf.sum(axis=1, level=0)
-            tp_rate_matrix = tp_counts.div(total_counts).fillna(0)
+    # FIXED: Proper unique negation calculation
+    monthly_stats = []
+    
+    for month in negation_df['Year_Month'].unique():
+        for marker in ['TP', 'FP']:
+            month_marker_data = negation_df[(negation_df['Year_Month'] == month) & (negation_df['Primary_Marker'] == marker)]
             
-            # Select top negation words for readability
-            top_words = negation_df['Negation_Word'].value_counts().head(10).index
-            tp_rate_filtered = tp_rate_matrix[tp_rate_matrix.columns.intersection(top_words)]
-            
-            sns.heatmap(tp_rate_filtered, annot=True, fmt='.2f', cmap='RdYlGn', 
-                       ax=axes[0], cbar_kws={'label': 'TP Rate'})
-            axes[0].set_title('TP Rate: Period vs Negation Word')
-            axes[0].set_ylabel('Period')
-            axes[0].set_xlabel('Negation Word')
+            if len(month_marker_data) > 0:
+                # Count total instances
+                volume = len(month_marker_data)
+                
+                # Count unique negation words (not total unique negations)
+                unique_neg_words = month_marker_data['Negation_Word'].nunique()
+                
+                # Count unique UUIDs (unique conversations)
+                unique_conversations = month_marker_data['UUID'].nunique()
+                
+                monthly_stats.append({
+                    'Year_Month': month,
+                    'Primary_Marker': marker,
+                    'Volume': volume,
+                    'Unique_Negation_Words': unique_neg_words,
+                    'Unique_Conversations': unique_conversations
+                })
     
-    # 2. Speaker vs Pattern Performance
-    if 'Pattern_Cluster' in negation_df.columns:
-        speaker_pattern_perf = pd.crosstab(
-            negation_df['Speaker'], 
-            negation_df['Pattern_Cluster'], 
-            negation_df['Primary_Marker'], 
-            aggfunc='count'
-        ).fillna(0)
-        
-        if 'TP' in speaker_pattern_perf.columns:
-            tp_counts = speaker_pattern_perf['TP']
-            total_counts = speaker_pattern_perf.sum(axis=1, level=0)
-            tp_rate_matrix = tp_counts.div(total_counts).fillna(0)
-            
-            sns.heatmap(tp_rate_matrix, annot=True, fmt='.2f', cmap='RdYlGn', 
-                       ax=axes[1], cbar_kws={'label': 'TP Rate'})
-            axes[1].set_title('TP Rate: Speaker vs Pattern')
-            axes[1].set_ylabel('Speaker')
-            axes[1].set_xlabel('Pattern Cluster')
+    monthly_stats_df = pd.DataFrame(monthly_stats)
     
-    plt.tight_layout()
-    plt.savefig(f'{output_dir}/performance_heatmaps.png', dpi=300, bbox_inches='tight')
-    plt.close()
-
-def create_interactive_dashboard(negation_df, pattern_analysis_df, output_dir):
-    """Create interactive dashboard"""
+    if len(monthly_stats_df) == 0:
+        print("No monthly statistics to plot")
+        return
     
-    print("Creating interactive dashboard...")
-    
-    # Create multi-tab dashboard
+    # Create interactive plot
     fig = make_subplots(
-        rows=3, cols=2,
-        subplot_titles=('Pattern Volume', 'TP vs FP Distribution', 
-                       'Monthly Trends', 'Speaker Analysis',
-                       'Performance Metrics', 'Pattern Quality'),
-        specs=[[{"type": "bar"}, {"type": "scatter"}],
-               [{"type": "scatter"}, {"type": "bar"}],
-               [{"type": "bar"}, {"type": "scatter"}]]
+        rows=2, cols=2,
+        subplot_titles=('Volume Over Time', 'Unique Negation Words Over Time',
+                       'Unique Conversations Over Time', 'TP/FP Ratio Over Time'),
+        specs=[[{"secondary_y": False}, {"secondary_y": False}],
+               [{"secondary_y": False}, {"secondary_y": False}]]
     )
     
-    # 1. Pattern volume
-    if len(pattern_analysis_df) > 0:
+    # Volume trend
+    tp_monthly = monthly_stats_df[monthly_stats_df['Primary_Marker'] == 'TP']
+    fp_monthly = monthly_stats_df[monthly_stats_df['Primary_Marker'] == 'FP']
+    
+    fig.add_trace(
+        go.Scatter(x=tp_monthly['Year_Month'], y=tp_monthly['Volume'],
+                  mode='lines+markers', name='TP Volume', line=dict(color='green'),
+                  hovertemplate='Month: %{x}<br>TP Volume: %{y}<extra></extra>'),
+        row=1, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=fp_monthly['Year_Month'], y=fp_monthly['Volume'],
+                  mode='lines+markers', name='FP Volume', line=dict(color='red'),
+                  hovertemplate='Month: %{x}<br>FP Volume: %{y}<extra></extra>'),
+        row=1, col=1
+    )
+    
+    # FIXED: Unique negation words (not misleading "unique negations")
+    fig.add_trace(
+        go.Scatter(x=tp_monthly['Year_Month'], y=tp_monthly['Unique_Negation_Words'],
+                  mode='lines+markers', name='TP Unique Words', line=dict(color='darkgreen'),
+                  hovertemplate='Month: %{x}<br>Unique Neg Words: %{y}<extra></extra>'),
+        row=1, col=2
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=fp_monthly['Year_Month'], y=fp_monthly['Unique_Negation_Words'],
+                  mode='lines+markers', name='FP Unique Words', line=dict(color='darkred'),
+                  hovertemplate='Month: %{x}<br>Unique Neg Words: %{y}<extra></extra>'),
+        row=1, col=2
+    )
+    
+    # NEW: Unique conversations
+    fig.add_trace(
+        go.Scatter(x=tp_monthly['Year_Month'], y=tp_monthly['Unique_Conversations'],
+                  mode='lines+markers', name='TP Conversations', line=dict(color='blue'),
+                  hovertemplate='Month: %{x}<br>Unique Conversations: %{y}<extra></extra>'),
+        row=2, col=1
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=fp_monthly['Year_Month'], y=fp_monthly['Unique_Conversations'],
+                  mode='lines+markers', name='FP Conversations', line=dict(color='orange'),
+                  hovertemplate='Month: %{x}<br>Unique Conversations: %{y}<extra></extra>'),
+        row=2, col=1
+    )
+    
+    # TP/FP Ratio calculation
+    ratio_data = []
+    for month in tp_monthly['Year_Month'].unique():
+        tp_vol = tp_monthly[tp_monthly['Year_Month'] == month]['Volume'].sum()
+        fp_vol = fp_monthly[fp_monthly['Year_Month'] == month]['Volume'].sum()
+        if tp_vol > 0 or fp_vol > 0:
+            ratio = tp_vol / (fp_vol + 1)  # Add 1 to avoid division by zero
+            ratio_data.append({'Month': month, 'Ratio': ratio, 'TP_Vol': tp_vol, 'FP_Vol': fp_vol})
+    
+    if ratio_data:
+        ratio_df = pd.DataFrame(ratio_data)
         fig.add_trace(
-            go.Bar(x=pattern_analysis_df['Cluster_ID'], 
-                   y=pattern_analysis_df['Total_Count'],
-                   name='Pattern Volume',
-                   marker_color='blue'),
-            row=1, col=1
+            go.Scatter(x=ratio_df['Month'], y=ratio_df['Ratio'],
+                      mode='lines+markers', name='TP/FP Ratio', line=dict(color='purple'),
+                      hovertemplate='Month: %{x}<br>TP/FP Ratio: %{y:.2f}<extra></extra>'),
+            row=2, col=2
         )
     
-    # 2. TP vs FP scatter
-    tp_data = negation_df[negation_df['Primary_Marker'] == 'TP']
-    fp_data = negation_df[negation_df['Primary_Marker'] == 'FP']
+    fig.update_layout(height=800, showlegend=True, 
+                      title_text="Temporal Analysis of Negation Patterns (FIXED)")
+    fig.write_html(f'{output_dir}/temporal_analysis_fixed.html')
+    
+    # Print debugging info
+    print("TEMPORAL ANALYSIS DEBUG INFO:")
+    print(f"Total months analyzed: {len(monthly_stats_df['Year_Month'].unique())}")
+    print(f"TP months: {len(tp_monthly)}")
+    print(f"FP months: {len(fp_monthly)}")
+    print("\nSample monthly stats:")
+    print(monthly_stats_df.head(10))
+
+# =============================================================================
+# UPDATED MAIN FUNCTION - Replace the original one
+# =============================================================================
+
+def create_comprehensive_visualizations_fixed(negation_df, pattern_analysis_df, output_dir='dynamic_negation_visualizations_fixed'):
+    """
+    Fixed version of comprehensive visualizations
+    """
+    
+    print("\n" + "="*60)
+    print("CREATING COMPREHENSIVE VISUALIZATIONS (FIXED)")
+    print("="*60)
+    
+    os.makedirs(output_dir, exist_ok=True)
+    
+    if len(negation_df) == 0:
+        print("No negation data to visualize!")
+        return
+    
+    # Debug info
+    print(f"Negation data shape: {negation_df.shape}")
+    print(f"Columns: {list(negation_df.columns)}")
+    print(f"Primary Marker values: {negation_df['Primary_Marker'].value_counts()}")
+    if 'Pattern_Cluster' in negation_df.columns:
+        print(f"Pattern clusters: {sorted(negation_df['Pattern_Cluster'].unique())}")
+    
+    # 1. PATTERN DISTRIBUTION ANALYSIS (original - working)
+    create_pattern_distribution_viz(negation_df, pattern_analysis_df, output_dir)
+    
+    # 2. FIXED TEMPORAL ANALYSIS
+    create_temporal_analysis_viz_fixed(negation_df, output_dir)
+    
+    # 3. SPEAKER ANALYSIS (original - working)
+    create_speaker_analysis_viz(negation_df, output_dir)
+    
+    # 4. FIXED CONTEXT WORD CLOUDS
+    create_context_wordclouds_fixed(negation_df, pattern_analysis_df, output_dir)
+    
+    # 5. FIXED PERFORMANCE HEATMAPS
+    create_performance_heatmaps_fixed(negation_df, output_dir)
+    
+    # 6. INTERACTIVE DASHBOARD (original - working)
+    create_interactive_dashboard(negation_df, pattern_analysis_df, output_dir)
+    
+    print(f"All FIXED visualizations saved to {output_dir}/")
+
+# =============================================================================
+# DIAGNOSTIC FUNCTION - Run this first to check your data
+# =============================================================================
+
+def diagnose_visualization_data(negation_df, pattern_analysis_df):
+    """Diagnose data issues before running visualizations"""
+    
+    print("\n" + "="*60)
+    print("DATA DIAGNOSTIC FOR VISUALIZATIONS")
+    print("="*60)
+    
+    print("1. BASIC DATA CHECK:")
+    print(f"   Negation DataFrame shape: {negation_df.shape}")
+    print(f"   Pattern Analysis DataFrame shape: {pattern_analysis_df.shape}")
+    
+    print("\n2. REQUIRED COLUMNS CHECK:")
+    required_cols = ['UUID', 'Primary_Marker', 'Speaker', 'Negation_Word', 'Context']
+    missing_cols = [col for col in required_cols if col not in negation_df.columns]
+    if missing_cols:
+        print(f"   MISSING: {missing_cols}")
+    else:
+        print("   All required columns present")
+    
+    print("\n3. DATA DISTRIBUTION:")
+    print(f"   Primary Marker: {dict(negation_df['Primary_Marker'].value_counts())}")
+    print(f"   Speaker: {dict(negation_df['Speaker'].value_counts())}")
     
     if 'Pattern_Cluster' in negation_df.columns:
-        tp_pattern_counts = tp_data['Pattern_Cluster'].value_counts()
-        fp_pattern_counts = fp_data['Pattern_Cluster'].value_counts()
-        
-        all_patterns = sorted(set(list(tp_pattern_counts.index) + list(fp_pattern_counts.index)))
-        tp_counts = [tp_pattern_counts.get(p, 0) for p in all_patterns]
-        fp_counts = [fp_pattern_counts.get(p, 0) for p in all_patterns]
-        
-        fig.add_trace(
-            go.Scatter(x=tp_counts, y=fp_counts,
-                      mode='markers+text',
-                      text=[f'P{p}' for p in all_patterns],
-                      textposition='top center',
-                      name='Pattern Performance',
-                      marker=dict(size=10, color='red', opacity=0.7)),
-            row=1, col=2
-        )
+        print(f"   Pattern Clusters: {sorted(negation_df['Pattern_Cluster'].unique())}")
+        print(f"   Pattern distribution: {dict(negation_df['Pattern_Cluster'].value_counts())}")
     
-    # 3. Monthly trends
+    print("\n4. CONTEXT DATA CHECK:")
+    if 'Context' in negation_df.columns:
+        non_empty_contexts = negation_df['Context'].dropna()
+        print(f"   Non-empty contexts: {len(non_empty_contexts)}/{len(negation_df)}")
+        if len(non_empty_contexts) > 0:
+            avg_length = non_empty_contexts.str.len().mean()
+            print(f"   Average context length: {avg_length:.1f} characters")
+    
+    print("\n5. TEMPORAL DATA CHECK:")
     if 'Year_Month' in negation_df.columns:
-        monthly_tp = negation_df[negation_df['Primary_Marker'] == 'TP'].groupby('Year_Month').size()
-        monthly_fp = negation_df[negation_df['Primary_Marker'] == 'FP'].groupby('Year_Month').size()
-        
-        fig.add_trace(
-            go.Scatter(x=monthly_tp.index, y=monthly_tp.values,
-                      mode='lines+markers', name='TP Trend',
-                      line=dict(color='green')),
-            row=2, col=1
-        )
-        
-        fig.add_trace(
-            go.Scatter(x=monthly_fp.index, y=monthly_fp.values,
-                      mode='lines+markers', name='FP Trend',
-                      line=dict(color='red')),
-            row=2, col=1
-        )
+        print(f"   Available months: {sorted(negation_df['Year_Month'].unique())}")
+        monthly_counts = negation_df['Year_Month'].value_counts().sort_index()
+        print(f"   Monthly distribution: {dict(monthly_counts)}")
     
-    # 4. Speaker analysis
-    speaker_counts = negation_df['Speaker'].value_counts()
-    fig.add_trace(
-        go.Bar(x=speaker_counts.index, y=speaker_counts.values,
-               name='Speaker Distribution',
-               marker_color=['lightblue', 'lightcoral']),
-        row=2, col=2
-    )
+    print("\n6. RECOMMENDATIONS:")
+    if len(negation_df) < 100:
+        print("   WARNING: Low data volume may result in sparse visualizations")
     
-    # 5. Performance metrics
-    if len(pattern_analysis_df) > 0:
-        fig.add_trace(
-            go.Bar(x=pattern_analysis_df['Cluster_ID'],
-                   y=pattern_analysis_df['TP_Rate'],
-                   name='TP Rate',
-                   marker_color='green'),
-            row=3, col=1
-        )
+    if 'Pattern_Cluster' in negation_df.columns:
+        pattern_counts = negation_df['Pattern_Cluster'].value_counts()
+        small_patterns = pattern_counts[pattern_counts < 5]
+        if len(small_patterns) > 0:
+            print(f"   NOTE: {len(small_patterns)} patterns have <5 instances (may skip word clouds)")
     
-    # 6. Quality scores
-    if len(pattern_analysis_df) > 0 and 'Quality_Score' in pattern_analysis_df.columns:
-        colors = ['red' if x < 0 else 'green' for x in pattern_analysis_df['Quality_Score']]
-        fig.add_trace(
-            go.Scatter(x=pattern_analysis_df['Cluster_ID'],
-                      y=pattern_analysis_df['Quality_Score'],
-                      mode='markers',
-                      name='Quality Score',
-                      marker=dict(size=12, color=colors, opacity=0.8)),
-            row=3, col=2
-        )
-    
-    fig.update_layout(height=1200, showlegend=True, 
-                      title_text="Dynamic Negation Analysis Dashboard")
-    fig.write_html(f'{output_dir}/interactive_dashboard.html')
-
-   
-# Create all visualizations
-create_comprehensive_visualizations(negation_df_clustered, pattern_analysis_df)
+    return True
