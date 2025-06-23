@@ -1,64 +1,63 @@
 import pandas as pd
 
-def calculate_insight_presence(df):
-    total_records = len(df)
+def generate_performance_metrics(df):
+    output = {}
 
-    insight_summary = []
-
-    # 1. Negation-Heavy Contexts
-    negation_mask = df['Customer_Negation_Count'] >= 5  # threshold as observed in analysis
-    insight_summary.append({
-        'Insight': 'Negation-Heavy Contexts',
-        'TP_Volume': df[negation_mask & (df['Primary Marker'] == 'TP')].shape[0],
-        'FP_Volume': df[negation_mask & (df['Primary Marker'] == 'FP')].shape[0],
-        'Total_Records': total_records
-    })
-
-    # 2. Agent-Dominated Turns
-    agent_dom_mask = df['Customer_Agent_Ratio'] < 0.9
-    insight_summary.append({
-        'Insight': 'Agent-Dominated Turns',
-        'TP_Volume': df[agent_dom_mask & (df['Primary Marker'] == 'TP')].shape[0],
-        'FP_Volume': df[agent_dom_mask & (df['Primary Marker'] == 'FP')].shape[0],
-        'Total_Records': total_records
-    })
-
-    # 3. Single-Category Transcripts
-    # assuming only Prosodica L1 and L2 used for labeling
-    single_cat_mask = df.groupby('variable5')['Prosodica L1'].transform('nunique') == 1
-    insight_summary.append({
-        'Insight': 'Single-Category Transcripts',
-        'TP_Volume': df[single_cat_mask & (df['Primary Marker'] == 'TP')].shape[0],
-        'FP_Volume': df[single_cat_mask & (df['Primary Marker'] == 'FP')].shape[0],
-        'Total_Records': total_records
-    })
-
-    # 4. High Politeness / Uncertainty
-    polite_uncertain_mask = (
-        (df['Customer Transcript'].str.count(r'\bplease\b|\bthank you\b|\bsorry\b|\bnot sure\b|\bdon\'t understand\b', flags=re.IGNORECASE)) >= 2
+    ## Primary: Overall Precision
+    total_tp = df[df['Primary Marker'] == 'TP'].shape[0]
+    total_fp = df[df['Primary Marker'] == 'FP'].shape[0]
+    primary_precision = round(100 * total_tp / (total_tp + total_fp), 1)
+    output['Primary_Precision'] = primary_precision
+    output['Primary_Gap'] = round(primary_precision - 70.0, 1)
+    output['Primary_Status'] = (
+        "EXCEEDING" if primary_precision >= 70.0 else "FAILING"
     )
-    insight_summary.append({
-        'Insight': 'High Politeness/Uncertainty',
-        'TP_Volume': df[polite_uncertain_mask & (df['Primary Marker'] == 'TP')].shape[0],
-        'FP_Volume': df[polite_uncertain_mask & (df['Primary Marker'] == 'FP')].shape[0],
-        'Total_Records': total_records
-    })
 
-    # 5. Short Complaint Descriptions
-    short_transcript_mask = df['Transcript_Length'] < 2500  # Based on TP avg being 6k+ and FP ~3.9k
-    insight_summary.append({
-        'Insight': 'Short Complaint Descriptions',
-        'TP_Volume': df[short_transcript_mask & (df['Primary Marker'] == 'TP')].shape[0],
-        'FP_Volume': df[short_transcript_mask & (df['Primary Marker'] == 'FP')].shape[0],
-        'Total_Records': total_records
-    })
+    ## Secondary: Category-Level Precision Check
+    category_precision = (
+        df.groupby('Prosodica L1')['Primary Marker']
+        .value_counts()
+        .unstack()
+        .fillna(0)
+    )
+    category_precision['Precision'] = (
+        category_precision['TP'] / (category_precision['TP'] + category_precision['FP'])
+    )
+    num_failing = (category_precision['Precision'] < 0.60).sum()
+    total_categories = category_precision.shape[0]
 
-    # Final summary with percentage
-    summary_df = pd.DataFrame(insight_summary)
-    summary_df['% Presence'] = ((summary_df['TP_Volume'] + summary_df['FP_Volume']) / total_records * 100).round(2)
+    output['Secondary_Summary'] = f"{num_failing}/{total_categories} below 70%"
+    output['Secondary_Gap'] = round(-100 * (num_failing / total_categories), 1)
+    output['Secondary_Status'] = (
+        "FAILING" if num_failing > 0 else "EXCEEDING"
+    )
 
-    return summary_df
+    ## Tertiary: Validation Agreement
+    df_valid = df[df['Has_Secondary_Validation'] == True]
+    if len(df_valid) > 0:
+        agreement = round(100 * df_valid['Primary_Secondary_Agreement'].mean(), 1)
+    else:
+        agreement = 0.0
 
-# Example usage:
-# summary_df = calculate_insight_presence(df_main)
-# print(summary_df)
+    output['Validation_Agreement'] = agreement
+    output['Validation_Gap'] = round(agreement - 85.0, 1)
+    output['Validation_Status'] = (
+        "EXCEEDING" if agreement >= 85 else "BELOW"
+    )
+
+    return output, category_precision.reset_index()
+
+# Usage:
+# metrics_summary, cat_precision_df = generate_performance_metrics(df_main)
+# pd.DataFrame.from_dict(metrics_summary, orient='index')
+
+
+def get_monthly_precision_trend(df, date_column='Month'):
+    df['Month'] = pd.to_datetime(df[date_column]).dt.to_period('M').astype(str)
+    monthly = df.groupby('Month')['Primary Marker'].value_counts().unstack().fillna(0)
+    monthly['Precision'] = (monthly['TP'] / (monthly['TP'] + monthly['FP']) * 100).round(1)
+    return monthly.reset_index()[['Month', 'Precision']]
+
+# Usage:
+# monthly_trend = get_monthly_precision_trend(df_main)
+# print(monthly_trend)
