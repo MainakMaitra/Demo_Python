@@ -201,8 +201,9 @@ complexity_df = profile_all_complaint_rules(df_complaint_rules)
 
 # 1.2 Rule-Category Effectiveness Mapping
 
+# Fix for the effectiveness mapping section
 def map_rule_category_effectiveness(df_main, df_rules, complexity_df):
-    """Map rule effectiveness by category using actual performance data"""
+    """Map rule effectiveness by category using actual performance data - FIXED VERSION"""
     
     print("\n1.2 RULE-CATEGORY EFFECTIVENESS MAPPING")
     print("-" * 45)
@@ -239,16 +240,21 @@ def map_rule_category_effectiveness(df_main, df_rules, complexity_df):
         if len(matching_categories) > 0:
             for _, cat in matching_categories.iterrows():
                 
-                # Get complexity data
-                complexity_info = complexity_df[
-                    (complexity_df['Event'] == event) & 
-                    (complexity_df['Query'] == query)
-                ]
-                
-                if len(complexity_info) > 0:
-                    complexity_score = complexity_info['total_complexity_score'].iloc[0]
-                    negation_patterns = complexity_info['negation_patterns'].iloc[0]
-                    proximity_rules = complexity_info['proximity_rules'].iloc[0]
+                # Get complexity data - FIXED: Handle empty complexity_df
+                if len(complexity_df) > 0:
+                    complexity_info = complexity_df[
+                        (complexity_df['Event'] == event) & 
+                        (complexity_df['Query'] == query)
+                    ]
+                    
+                    if len(complexity_info) > 0:
+                        complexity_score = complexity_info['total_complexity_score'].iloc[0]
+                        negation_patterns = complexity_info['negation_patterns'].iloc[0]
+                        proximity_rules = complexity_info['proximity_rules'].iloc[0]
+                    else:
+                        complexity_score = 0
+                        negation_patterns = 0
+                        proximity_rules = 0
                 else:
                     complexity_score = 0
                     negation_patterns = 0
@@ -278,13 +284,14 @@ def map_rule_category_effectiveness(df_main, df_rules, complexity_df):
     
     # Analyze effectiveness patterns
     print("\nEffectiveness Analysis by Channel:")
-    channel_effectiveness = effectiveness_df.groupby('Channel').agg({
-        'Actual_Precision': 'mean',
-        'FP_Rate': 'mean',
-        'Volume': 'sum',
-        'Complexity_Score': 'mean'
-    }).round(3)
-    print(channel_effectiveness)
+    if 'Channel' in effectiveness_df.columns:
+        channel_effectiveness = effectiveness_df.groupby('Channel').agg({
+            'Actual_Precision': 'mean',
+            'FP_Rate': 'mean',
+            'Volume': 'sum',
+            'Complexity_Score': 'mean'
+        }).round(3)
+        print(channel_effectiveness)
     
     # Analyze effectiveness by complexity
     print("\nEffectiveness Analysis by Complexity:")
@@ -313,28 +320,29 @@ def map_rule_category_effectiveness(df_main, df_rules, complexity_df):
     else:
         print("No high-volume low-precision combinations identified")
     
-    # Multi-category analysis
+    # Multi-category analysis - FIXED: Proper handling of category counting
     print("\nMulti-Category Rule Analysis:")
-    multi_category_rules = effectiveness_df.groupby(['Event', 'Query']).size().reset_index(name='category_count')
-    multi_category_rules = multi_category_rules[multi_category_rules['category_count'] > 1]
-    
-    if len(multi_category_rules) > 0:
-        print(f"Found {len(multi_category_rules)} rules triggering multiple categories")
+    if len(effectiveness_df) > 0:
+        multi_category_rules = effectiveness_df.groupby(['Event', 'Query']).size().reset_index(name='category_count')
+        multi_category_rules = multi_category_rules[multi_category_rules['category_count'] > 1]
         
-        # Analyze average precision for multi-category rules
-        multi_category_analysis = effectiveness_df.merge(
-            multi_category_rules[['Event', 'Query']], 
-            on=['Event', 'Query']
-        ).groupby(['Event', 'Query']).agg({
-            'Actual_Precision': 'mean',
-            'Volume': 'sum',
-            'category_count': 'first'
-        }).reset_index()
-        
-        print("Multi-Category Rule Performance:")
-        print(multi_category_analysis.sort_values('Actual_Precision').head(10))
-    else:
-        print("No multi-category rules detected")
+        if len(multi_category_rules) > 0:
+            print(f"Found {len(multi_category_rules)} rules triggering multiple categories")
+            
+            # Analyze average precision for multi-category rules
+            multi_category_analysis = effectiveness_df.merge(
+                multi_category_rules[['Event', 'Query', 'category_count']], 
+                on=['Event', 'Query']
+            ).groupby(['Event', 'Query']).agg({
+                'Actual_Precision': 'mean',
+                'Volume': 'sum',
+                'category_count': 'first'
+            }).reset_index()
+            
+            print("Multi-Category Rule Performance:")
+            print(multi_category_analysis.sort_values('Actual_Precision').head(10))
+        else:
+            print("No multi-category rules detected")
     
     return effectiveness_df, category_performance
 
