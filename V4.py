@@ -126,8 +126,8 @@ def analyze_query_complexity(query_text):
         'total_complexity_score': complexity_score
     }
 
-def profile_all_complaint_rules(df_rules):
-    """Profile complexity for all complaint rules"""
+def profile_all_complaint_rules_fixed(df_rules):
+    """Profile complexity for all complaint rules - FIXED VERSION"""
     
     print("1.1 RULE COMPLEXITY PROFILING")
     print("-" * 40)
@@ -148,6 +148,7 @@ def profile_all_complaint_rules(df_rules):
             'Event': rule.get('Event', ''),
             'Query': rule.get('Query', ''),
             'Channel': rule.get('Channel', ''),
+            'begin_date': rule.get('begin_date', ''),  # Add this to track rule versions
             'Query_Text_Length': len(str(query_text)) if pd.notna(query_text) else 0,
             **complexity
         }
@@ -182,12 +183,14 @@ def profile_all_complaint_rules(df_rules):
     ]
     print(most_complex)
     
-    # Identify rules with poor negation handling
+    # FIXED: Remove duplicates for high negation rules
     print("\nRules with High Negation Usage but No Context Handling:")
     high_negation_rules = complexity_df[
         (complexity_df['negation_patterns'] > 3) & 
         (complexity_df['proximity_rules'] == 0)
-    ][['Event', 'Query', 'negation_patterns', 'proximity_rules']]
+    ].drop_duplicates(subset=['Event', 'Query'])[  # Remove duplicates based on Event+Query
+        ['Event', 'Query', 'negation_patterns', 'proximity_rules']
+    ]
     
     if len(high_negation_rules) > 0:
         print(high_negation_rules.head(10))
@@ -197,7 +200,218 @@ def profile_all_complaint_rules(df_rules):
     return complexity_df
 
 # Execute complexity profiling
-complexity_df = profile_all_complaint_rules(df_complaint_rules)
+complexity_df = profile_all_complaint_rules_fixed(df_complaint_rules)
+
+def analyze_high_negation_rules_temporal(df_main, complexity_df):
+    """Analyze temporal performance of high negation rules without context handling"""
+    
+    print("\nTEMPORAL ANALYSIS: HIGH NEGATION RULES WITHOUT CONTEXT")
+    print("=" * 60)
+    
+    if df_main is None or len(complexity_df) == 0:
+        print("Missing required data for temporal analysis")
+        return pd.DataFrame()
+    
+    # Prepare temporal data
+    df_main['Date'] = pd.to_datetime(df_main['Date'])
+    df_main['Year_Month'] = df_main['Date'].dt.strftime('%Y-%m')
+    
+    # Define periods
+    pre_months = ['2024-10', '2024-11', '2024-12']
+    post_months = ['2025-01', '2025-02', '2025-03']
+    
+    df_main['Period'] = df_main['Year_Month'].apply(
+        lambda x: 'Pre' if str(x) in pre_months else 'Post' if str(x) in post_months else 'Other'
+    )
+    
+    # Identify high negation rules without context (remove duplicates)
+    high_negation_rules = complexity_df[
+        (complexity_df['negation_patterns'] > 3) & 
+        (complexity_df['proximity_rules'] == 0)
+    ].drop_duplicates(subset=['Event', 'Query'])
+    
+    if len(high_negation_rules) == 0:
+        print("No high negation rules without context found")
+        return pd.DataFrame()
+    
+    print(f"Analyzing {len(high_negation_rules)} high negation rules without context")
+    
+    # Get top 10 by negation patterns
+    top_10_high_negation = high_negation_rules.nlargest(10, 'negation_patterns')
+    
+    print("\nTop 10 Rules by Negation Patterns:")
+    print(top_10_high_negation[['Event', 'Query', 'negation_patterns', 'proximity_rules']])
+    
+    # Analyze performance for these rules over time
+    temporal_results = []
+    
+    for _, rule in top_10_high_negation.iterrows():
+        event = rule['Event']
+        query = rule['Query']
+        negation_count = rule['negation_patterns']
+        
+        # Find matching transcripts for this rule
+        rule_transcripts = df_main[
+            (df_main['Prosodica L1'].str.lower() == event.lower()) |
+            (df_main['Prosodica L2'].str.lower() == query.lower())
+        ]
+        
+        if len(rule_transcripts) == 0:
+            continue
+        
+        # Monthly analysis
+        monthly_performance = rule_transcripts.groupby('Year_Month').agg({
+            'Primary Marker': lambda x: (x == 'TP').mean(),
+            'variable5': 'count'
+        }).reset_index()
+        
+        monthly_performance.columns = ['Year_Month', 'Precision', 'Volume']
+        
+        for _, month_data in monthly_performance.iterrows():
+            temporal_results.append({
+                'Event': event,
+                'Query': query,
+                'Negation_Patterns': negation_count,
+                'Year_Month': month_data['Year_Month'],
+                'Precision': month_data['Precision'],
+                'Volume': month_data['Volume']
+            })
+        
+        # Pre vs Post analysis
+        pre_data = rule_transcripts[rule_transcripts['Period'] == 'Pre']
+        post_data = rule_transcripts[rule_transcripts['Period'] == 'Post']
+        
+        if len(pre_data) > 0 and len(post_data) > 0:
+            pre_precision = (pre_data['Primary Marker'] == 'TP').mean()
+            post_precision = (post_data['Primary Marker'] == 'TP').mean()
+            
+            temporal_results.append({
+                'Event': event,
+                'Query': query,
+                'Negation_Patterns': negation_count,
+                'Year_Month': 'Pre_Period',
+                'Precision': pre_precision,
+                'Volume': len(pre_data)
+            })
+            
+            temporal_results.append({
+                'Event': event,
+                'Query': query,
+                'Negation_Patterns': negation_count,
+                'Year_Month': 'Post_Period',
+                'Precision': post_precision,
+                'Volume': len(post_data)
+            })
+    
+    temporal_df = pd.DataFrame(temporal_results)
+    
+    if len(temporal_df) == 0:
+        print("No temporal data found for high negation rules")
+        return pd.DataFrame()
+    
+    # Create Pre vs Post summary
+    print("\nPRE VS POST ANALYSIS FOR TOP 10 HIGH NEGATION RULES:")
+    print("-" * 55)
+    
+    pre_post_data = temporal_df[temporal_df['Year_Month'].isin(['Pre_Period', 'Post_Period'])]
+    
+    if len(pre_post_data) > 0:
+        pre_post_pivot = pre_post_data.pivot_table(
+            index=['Event', 'Query', 'Negation_Patterns'],
+            columns='Year_Month',
+            values=['Precision', 'Volume'],
+            fill_value=0
+        ).round(3)
+        
+        print(pre_post_pivot)
+        
+        # Calculate changes
+        pre_post_summary = []
+        for rule_combo in pre_post_data[['Event', 'Query', 'Negation_Patterns']].drop_duplicates().values:
+            event, query, neg_patterns = rule_combo
+            
+            rule_data = pre_post_data[
+                (pre_post_data['Event'] == event) & 
+                (pre_post_data['Query'] == query)
+            ]
+            
+            pre_row = rule_data[rule_data['Year_Month'] == 'Pre_Period']
+            post_row = rule_data[rule_data['Year_Month'] == 'Post_Period']
+            
+            if len(pre_row) > 0 and len(post_row) > 0:
+                pre_precision = pre_row['Precision'].iloc[0]
+                post_precision = post_row['Precision'].iloc[0]
+                precision_change = post_precision - pre_precision
+                
+                pre_volume = pre_row['Volume'].iloc[0]
+                post_volume = post_row['Volume'].iloc[0]
+                volume_change = post_volume - pre_volume
+                
+                pre_post_summary.append({
+                    'Event': event,
+                    'Query': query,
+                    'Negation_Patterns': neg_patterns,
+                    'Pre_Precision': pre_precision,
+                    'Post_Precision': post_precision,
+                    'Precision_Change': precision_change,
+                    'Pre_Volume': pre_volume,
+                    'Post_Volume': post_volume,
+                    'Volume_Change': volume_change
+                })
+        
+        if len(pre_post_summary) > 0:
+            pre_post_summary_df = pd.DataFrame(pre_post_summary)
+            
+            print("\nPRECISION CHANGE SUMMARY:")
+            print(pre_post_summary_df.sort_values('Precision_Change')[
+                ['Event', 'Query', 'Negation_Patterns', 'Pre_Precision', 'Post_Precision', 'Precision_Change']
+            ])
+    
+    # Create Month-on-Month view
+    print("\nMONTH-ON-MONTH ANALYSIS FOR TOP 10 HIGH NEGATION RULES:")
+    print("-" * 58)
+    
+    monthly_data = temporal_df[~temporal_df['Year_Month'].isin(['Pre_Period', 'Post_Period'])]
+    
+    if len(monthly_data) > 0:
+        # Create pivot table for better visualization
+        monthly_pivot = monthly_data.pivot_table(
+            index=['Event', 'Query', 'Negation_Patterns'],
+            columns='Year_Month',
+            values='Precision',
+            fill_value=0
+        ).round(3)
+        
+        print("Monthly Precision Trends:")
+        print(monthly_pivot)
+        
+        # Calculate month-on-month changes
+        available_months = sorted([col for col in monthly_pivot.columns if col not in ['Pre_Period', 'Post_Period']])
+        
+        if len(available_months) > 1:
+            print("\nMonth-on-Month Precision Changes:")
+            
+            for i in range(len(available_months) - 1):
+                current_month = available_months[i]
+                next_month = available_months[i + 1]
+                
+                monthly_pivot[f'{current_month}_to_{next_month}_change'] = (
+                    monthly_pivot[next_month] - monthly_pivot[current_month]
+                )
+            
+            # Show changes
+            change_columns = [col for col in monthly_pivot.columns if '_change' in col]
+            if len(change_columns) > 0:
+                print(monthly_pivot[change_columns])
+    
+    return temporal_df
+
+# Execute the temporal analysis
+high_negation_temporal_analysis = analyze_high_negation_rules_temporal(df_main, complexity_df)
+
+
+
+
 
 # 1.2 Rule-Category Effectiveness Mapping
 
