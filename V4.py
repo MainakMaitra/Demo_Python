@@ -1,13 +1,16 @@
-def create_compact_problematic_rules_view_formatted(df_main, problematic_rules):
+def create_compact_problematic_rules_view_pivot(df_main, problematic_rules):
     """
-    Create a compact view in the exact requested format:
-    Event | Query | Negation Patterns | Short_Precision (Pre/Post/Change) | Medium_Precision (Pre/Post/Change) | Long_Precision (Pre/Post/Change)
+    Create a compact view with multi-level column structure matching the requested format:
+    
+    DataFrame Structure:
+    - Level 0: Event, Query, Negation Patterns, Short_Precision, Medium_Precision, Long_Precision
+    - Level 1: blank, blank, blank, [Pre, Post, Precision_Change], [Pre, Post, Precision_Change], [Pre, Post, Precision_Change]
     """
     
     print("\n" + "="*120)
-    print("COMPACT ANALYSIS: PROBLEMATIC RULES - LENGTH-BASED PRECISION BREAKDOWN")
+    print("PIVOT-STRUCTURED COMPACT ANALYSIS: PROBLEMATIC RULES")
     print("="*120)
-    print("Format: Event | Query | Negation Patterns | Short/Medium/Long Precision (Pre→Post→Change)")
+    print("Creating DataFrame with multi-level columns as requested")
     print("="*120)
     
     if df_main is None or len(problematic_rules) == 0:
@@ -32,7 +35,7 @@ def create_compact_problematic_rules_view_formatted(df_main, problematic_rules):
     df_main['Full_Transcript'] = df_main['Customer_Transcript'] + ' ' + df_main['Agent_Transcript']
     df_main['Transcript_Length'] = df_main['Full_Transcript'].str.len()
     
-    # Define length categories based on distribution analysis
+    # Define length categories
     df_main['Length_Category'] = pd.cut(
         df_main['Transcript_Length'],
         bins=[0, 4000, 8000, float('inf')],
@@ -45,19 +48,17 @@ def create_compact_problematic_rules_view_formatted(df_main, problematic_rules):
         percentage = count / len(df_main) * 100
         print(f"  {category}: {count:,} transcripts ({percentage:.1f}%)")
     
-    compact_results = []
+    # Collect data for each rule
+    analysis_data = []
     
-    # Analyze top 15 problematic rules
-    top_problematic = problematic_rules.head(15)
+    print(f"\nAnalyzing top {len(problematic_rules.head(15))} problematic rules...")
     
-    print(f"\nAnalyzing top {len(top_problematic)} problematic rules...")
-    
-    for idx, rule in top_problematic.iterrows():
+    for idx, rule in problematic_rules.head(15).iterrows():
         event = rule['Event']
         query = rule['Query']
         negation_count = rule['negation_patterns']
         
-        # Find matching transcripts for this rule
+        # Find matching transcripts
         rule_transcripts = df_main[
             (df_main['Prosodica L1'].str.lower() == event.lower()) |
             (df_main['Prosodica L2'].str.lower() == query.lower())
@@ -73,171 +74,225 @@ def create_compact_problematic_rules_view_formatted(df_main, problematic_rules):
         if len(pre_data) == 0 or len(post_data) == 0:
             continue
         
-        # Initialize result row
-        result_row = {
+        # Calculate precision for each length category and period
+        row_data = {
             'Event': event,
             'Query': query,
             'Negation_Patterns': negation_count
         }
         
-        # Calculate precision for each length category in each period
-        for period_name, period_data in [('Pre', pre_data), ('Post', post_data)]:
-            
-            for length_cat in ['Short', 'Medium', 'Long']:
-                # Filter data for this length category
-                length_data = period_data[period_data['Length_Category'] == length_cat]
-                
-                if len(length_data) > 0:
-                    precision = (length_data['Primary Marker'] == 'TP').mean()
-                else:
-                    precision = 0.0  # No data available
-                
-                # Store in result row
-                result_row[f'{length_cat}_{period_name}'] = round(precision, 3)
-        
-        # Calculate precision changes
         for length_cat in ['Short', 'Medium', 'Long']:
-            pre_key = f'{length_cat}_Pre'
-            post_key = f'{length_cat}_Post'
-            change_key = f'{length_cat}_Precision_Change'
+            # Pre period
+            pre_length_data = pre_data[pre_data['Length_Category'] == length_cat]
+            pre_precision = (pre_length_data['Primary Marker'] == 'TP').mean() if len(pre_length_data) > 0 else 0.0
             
-            if pre_key in result_row and post_key in result_row:
-                change = result_row[post_key] - result_row[pre_key]
-                result_row[change_key] = round(change, 3)
-            else:
-                result_row[change_key] = 0.0
+            # Post period
+            post_length_data = post_data[post_data['Length_Category'] == length_cat]
+            post_precision = (post_length_data['Primary Marker'] == 'TP').mean() if len(post_length_data) > 0 else 0.0
+            
+            # Calculate change
+            precision_change = post_precision - pre_precision
+            
+            # Store data
+            row_data[f'{length_cat}_Pre'] = round(pre_precision, 3)
+            row_data[f'{length_cat}_Post'] = round(post_precision, 3)
+            row_data[f'{length_cat}_Change'] = round(precision_change, 3)
         
-        compact_results.append(result_row)
+        analysis_data.append(row_data)
     
-    # Create DataFrame
-    compact_df = pd.DataFrame(compact_results)
-    
-    if len(compact_df) == 0:
-        print("No data available for compact analysis")
+    # Create DataFrame from collected data
+    if len(analysis_data) == 0:
+        print("No analysis data collected")
         return pd.DataFrame()
     
-    # Reorder columns to match requested format
-    column_order = [
-        'Event', 'Query', 'Negation_Patterns',
-        'Short_Pre', 'Short_Post', 'Short_Precision_Change',
-        'Medium_Pre', 'Medium_Post', 'Medium_Precision_Change',
-        'Long_Pre', 'Long_Post', 'Long_Precision_Change'
-    ]
+    base_df = pd.DataFrame(analysis_data)
     
-    # Ensure all columns exist
-    for col in column_order:
-        if col not in compact_df.columns:
-            compact_df[col] = 0.0
+    # Sort by Short precision change (most negative first)
+    base_df = base_df.sort_values('Short_Change')
     
-    compact_df = compact_df[column_order]
+    # Create the multi-level column structure
+    print("\nCreating multi-level column structure...")
     
-    # Rename columns for display
-    compact_df.columns = [
-        'Event', 'Query', 'Negation Patterns',
-        'Pre', 'Post', 'Precision_Change',  # Short
-        'Pre', 'Post', 'Precision_Change',  # Medium  
-        'Pre', 'Post', 'Precision_Change'   # Long
-    ]
+    # Define the column structure
+    # Level 0: Main category headers
+    # Level 1: Sub-headers (Pre, Post, Precision_Change)
     
-    # Create multi-level column headers for better display
-    display_df = compact_df.copy()
+    columns_level_0 = (
+        ['Event', 'Query', 'Negation Patterns'] +
+        ['Short_Precision'] * 3 +
+        ['Medium_Precision'] * 3 +
+        ['Long_Precision'] * 3
+    )
     
-    # Sort by biggest precision drops in short transcripts
-    display_df = display_df.sort_values('Short_Precision_Change')
+    columns_level_1 = (
+        ['', '', ''] +  # Empty for basic info columns
+        ['Pre', 'Post', 'Precision_Change'] +  # Short
+        ['Pre', 'Post', 'Precision_Change'] +  # Medium
+        ['Pre', 'Post', 'Precision_Change']    # Long
+    )
     
-    print(f"\nCOMPACT RESULTS: {len(display_df)} Problematic Rules")
+    # Create MultiIndex columns
+    multi_columns = pd.MultiIndex.from_tuples(
+        list(zip(columns_level_0, columns_level_1)),
+        names=['Category', 'Metric']
+    )
+    
+    # Create the final DataFrame with multi-level columns
+    final_data = []
+    
+    for _, row in base_df.iterrows():
+        final_row = [
+            row['Event'],
+            row['Query'], 
+            row['Negation_Patterns'],
+            row['Short_Pre'],
+            row['Short_Post'],
+            row['Short_Change'],
+            row['Medium_Pre'],
+            row['Medium_Post'],
+            row['Medium_Change'],
+            row['Long_Pre'],
+            row['Long_Post'],
+            row['Long_Change']
+        ]
+        final_data.append(final_row)
+    
+    # Create the final DataFrame with MultiIndex columns
+    pivot_df = pd.DataFrame(final_data, columns=multi_columns)
+    
+    print(f"\nPivot DataFrame created with shape: {pivot_df.shape}")
+    print("Column structure:")
+    print(f"Level 0: {pivot_df.columns.get_level_values(0).unique().tolist()}")
+    print(f"Level 1: {pivot_df.columns.get_level_values(1).unique().tolist()}")
+    
+    # Display preview
+    print(f"\nPreview of top 5 rules:")
     print("-" * 120)
     
-    # Custom display with proper headers
-    print("                                                    Short_Precision              Medium_Precision             Long_Precision")
-    print("Event                    Query                   Neg  Pre   Post  Change    Pre   Post  Change    Pre   Post  Change")
-    print("-" * 120)
+    # Display with proper formatting
+    display_preview(pivot_df.head(5))
     
-    for idx, row in display_df.head(10).iterrows():
-        event_short = row['Event'][:20].ljust(20)
-        query_short = row['Query'][:20].ljust(20)
-        neg_patterns = str(int(row['Negation Patterns'])).rjust(3)
-        
-        # Short precision
-        short_pre = f"{row.iloc[3]:.3f}".rjust(5)
-        short_post = f"{row.iloc[4]:.3f}".rjust(5)
-        short_change = f"{row.iloc[5]:+.3f}".rjust(7)
-        
-        # Medium precision  
-        medium_pre = f"{row.iloc[6]:.3f}".rjust(5)
-        medium_post = f"{row.iloc[7]:.3f}".rjust(5)
-        medium_change = f"{row.iloc[8]:+.3f}".rjust(7)
-        
-        # Long precision
-        long_pre = f"{row.iloc[9]:.3f}".rjust(5)
-        long_post = f"{row.iloc[10]:.3f}".rjust(5)
-        long_change = f"{row.iloc[11]:+.3f}".rjust(7)
-        
-        print(f"{event_short} {query_short} {neg_patterns} {short_pre} {short_post} {short_change}  {medium_pre} {medium_post} {medium_change}  {long_pre} {long_post} {long_change}")
+    # Calculate and display summary statistics
+    print(f"\n" + "="*120)
+    print("SUMMARY STATISTICS:")
+    print("="*120)
     
-    # Statistical Summary
-    print(f"\n" + "-" * 120)
-    print("STATISTICAL SUMMARY:")
-    print("-" * 120)
-    
-    # Calculate summary statistics
-    short_changes = display_df.iloc[:, 5]  # Short precision changes
-    medium_changes = display_df.iloc[:, 8]  # Medium precision changes  
-    long_changes = display_df.iloc[:, 11]  # Long precision changes
+    # Extract precision change columns for analysis
+    short_changes = pivot_df[('Short_Precision', 'Precision_Change')]
+    medium_changes = pivot_df[('Medium_Precision', 'Precision_Change')]
+    long_changes = pivot_df[('Long_Precision', 'Precision_Change')]
     
     print(f"Average Precision Changes:")
-    print(f"  Short Transcripts:  {short_changes.mean():+.3f} (Range: {short_changes.min():+.3f} to {short_changes.max():+.3f})")
-    print(f"  Medium Transcripts: {medium_changes.mean():+.3f} (Range: {medium_changes.min():+.3f} to {medium_changes.max():+.3f})")
-    print(f"  Long Transcripts:   {long_changes.mean():+.3f} (Range: {long_changes.min():+.3f} to {long_changes.max():+.3f})")
+    print(f"  Short Transcripts:  {short_changes.mean():+.3f}")
+    print(f"  Medium Transcripts: {medium_changes.mean():+.3f}")
+    print(f"  Long Transcripts:   {long_changes.mean():+.3f}")
     
-    # Count rules with significant drops
+    # Count significant drops
     short_drops = (short_changes < -0.05).sum()
     medium_drops = (medium_changes < -0.05).sum()
     long_drops = (long_changes < -0.05).sum()
     
     print(f"\nRules with >5% Precision Drop:")
-    print(f"  Short Transcripts:  {short_drops}/{len(display_df)} rules ({short_drops/len(display_df)*100:.1f}%)")
-    print(f"  Medium Transcripts: {medium_drops}/{len(display_df)} rules ({medium_drops/len(display_df)*100:.1f}%)")
-    print(f"  Long Transcripts:   {long_drops}/{len(display_df)} rules ({long_drops/len(display_df)*100:.1f}%)")
+    print(f"  Short Transcripts:  {short_drops}/{len(pivot_df)} ({short_drops/len(pivot_df)*100:.1f}%)")
+    print(f"  Medium Transcripts: {medium_drops}/{len(pivot_df)} ({medium_drops/len(pivot_df)*100:.1f}%)")
+    print(f"  Long Transcripts:   {long_drops}/{len(pivot_df)} ({long_drops/len(pivot_df)*100:.1f}%)")
     
     # Key insights
-    print(f"\n" + "="*120)
-    print("KEY INSIGHTS:")
-    print("="*120)
-    
     if short_drops > medium_drops and short_drops > long_drops:
-        print("1. *** SHORT TRANSCRIPTS MOST AFFECTED *** - Confirms length-based discrimination hypothesis")
+        print(f"\n*** KEY FINDING: Short transcripts are disproportionately affected ***")
+        print(f"*** This confirms the length-based discrimination hypothesis ***")
     
-    if short_changes.mean() < medium_changes.mean() and short_changes.mean() < long_changes.mean():
-        print("2. *** SHORT TRANSCRIPTS SHOW WORST PERFORMANCE DEGRADATION *** - Pattern matches expectations")
-    
-    worst_rules = display_df.head(3)
-    print(f"3. *** TOP 3 MOST PROBLEMATIC RULES ***:")
-    for idx, rule in worst_rules.iterrows():
-        short_change = rule.iloc[5]
-        print(f"   {rule['Event']} | {rule['Query']} | Short precision change: {short_change:+.3f}")
-    
-    # Return properly formatted DataFrame for export
-    export_df = pd.DataFrame()
-    export_df['Event'] = display_df['Event']
-    export_df['Query'] = display_df['Query'] 
-    export_df['Negation_Patterns'] = display_df['Negation Patterns']
-    
-    # Short precision columns
-    export_df['Short_Pre'] = display_df.iloc[:, 3]
-    export_df['Short_Post'] = display_df.iloc[:, 4]
-    export_df['Short_Precision_Change'] = display_df.iloc[:, 5]
-    
-    # Medium precision columns
-    export_df['Medium_Pre'] = display_df.iloc[:, 6]
-    export_df['Medium_Post'] = display_df.iloc[:, 7]
-    export_df['Medium_Precision_Change'] = display_df.iloc[:, 8]
-    
-    # Long precision columns
-    export_df['Long_Pre'] = display_df.iloc[:, 9]
-    export_df['Long_Post'] = display_df.iloc[:, 10]
-    export_df['Long_Precision_Change'] = display_df.iloc[:, 11]
-    
-    return export_df
+    return pivot_df
 
-formatted_results = create_compact_problematic_rules_view_formatted(df_main, problematic_rules)
+def display_preview(df):
+    """Display a nicely formatted preview of the multi-level DataFrame"""
+    
+    print("Event                Query                Neg |    Short_Precision    |   Medium_Precision    |    Long_Precision     |")
+    print("                                              |  Pre  Post  Change   |  Pre  Post  Change   |  Pre  Post  Change   |")
+    print("-" * 120)
+    
+    for idx, row in df.iterrows():
+        event = str(row[('Event', '')])[:20].ljust(20)
+        query = str(row[('Query', '')])[:20].ljust(20)
+        neg = str(int(row[('Negation Patterns', '')])).rjust(3)
+        
+        # Short precision
+        short_pre = f"{row[('Short_Precision', 'Pre')]:.3f}"
+        short_post = f"{row[('Short_Precision', 'Post')]:.3f}"
+        short_change = f"{row[('Short_Precision', 'Precision_Change')]:+.3f}"
+        
+        # Medium precision
+        medium_pre = f"{row[('Medium_Precision', 'Pre')]:.3f}"
+        medium_post = f"{row[('Medium_Precision', 'Post')]:.3f}"
+        medium_change = f"{row[('Medium_Precision', 'Precision_Change')]:+.3f}"
+        
+        # Long precision
+        long_pre = f"{row[('Long_Precision', 'Pre')]:.3f}"
+        long_post = f"{row[('Long_Precision', 'Post')]:.3f}"
+        long_change = f"{row[('Long_Precision', 'Precision_Change')]:+.3f}"
+        
+        print(f"{event} {query} {neg} | {short_pre} {short_post} {short_change} | {medium_pre} {medium_post} {medium_change} | {long_pre} {long_post} {long_change} |")
+
+def export_pivot_results(pivot_df):
+    """Export the pivot DataFrame to Excel with proper multi-level headers"""
+    
+    if len(pivot_df) == 0:
+        print("No data to export")
+        return None
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f'Pivot_Problematic_Rules_Analysis_{timestamp}.xlsx'
+    
+    print(f"\nExporting pivot results to: {filename}")
+    
+    with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
+        # Write the multi-level DataFrame
+        pivot_df.to_excel(writer, sheet_name='Pivot_Analysis', index=False)
+        
+        # Get workbook and worksheet for formatting
+        workbook = writer.book
+        worksheet = writer.sheets['Pivot_Analysis']
+        
+        # Create formats
+        header_format = workbook.add_format({
+            'bold': True,
+            'text_wrap': True,
+            'valign': 'top',
+            'fg_color': '#D7E4BC',
+            'border': 1,
+            'align': 'center'
+        })
+        
+        # Format the multi-level headers
+        # Row 0: Level 0 headers
+        # Row 1: Level 1 headers
+        
+        # Apply header formatting
+        for col in range(len(pivot_df.columns)):
+            worksheet.write(0, col, pivot_df.columns[col][0], header_format)
+            worksheet.write(1, col, pivot_df.columns[col][1], header_format)
+    
+    print(f"Pivot analysis exported successfully with multi-level headers!")
+    return filename
+
+def run_pivot_analysis(df_main, problematic_rules):
+    """Run the complete pivot analysis"""
+    
+    pivot_results = create_compact_problematic_rules_view_pivot(df_main, problematic_rules)
+    
+    if len(pivot_results) > 0:
+        export_filename = export_pivot_results(pivot_results)
+        return pivot_results, export_filename
+    else:
+        return pd.DataFrame(), None
+
+# Usage in your main script:
+"""
+# After identifying problematic rules:
+pivot_results, export_file = run_pivot_analysis(df_main, problematic_rules)
+
+# To access specific columns in the multi-level DataFrame:
+short_precision_changes = pivot_results[('Short_Precision', 'Precision_Change')]
+medium_pre_values = pivot_results[('Medium_Precision', 'Pre')]
+long_post_values = pivot_results[('Long_Precision', 'Post')]
+"""
