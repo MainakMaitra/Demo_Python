@@ -87,18 +87,46 @@ def enhanced_deep_negation_analysis(df):
     
     monthly_context_df = pd.DataFrame(monthly_context)
     
-    # Show top discriminating patterns by month
+    # Show top discriminating patterns by month in clear format
     for pattern in ['Complaint_Negation', 'Information_Negation', 'Service_Negation']:
         pattern_monthly = monthly_context_df[monthly_context_df['Pattern_Type'] == pattern]
         
-        print(f"\n{pattern} Monthly Evolution:")
-        pivot_table = pattern_monthly.pivot_table(
-            index='Pattern_Type',
-            columns='Year_Month', 
-            values=['TP_Rate_%', 'FP_Rate_%', 'Discrimination'],
-            aggfunc='mean'
-        ).round(2)
-        print(pivot_table)
+        print(f"\n{pattern.upper()} - MONTHLY EVOLUTION:")
+        print("-" * 70)
+        
+        # Create a cleaner table format
+        months = ['2024-10', '2024-11', '2024-12', '2025-01', '2025-02', '2025-03']
+        display_months = ["Oct'24", "Nov'24", "Dec'24", "Jan'25", "Feb'25", "Mar'25"]
+        
+        # Build the monthly table manually for better formatting
+        monthly_table = []
+        
+        # TP Rate row
+        tp_row = {'Metric': 'TP_Rate_%'}
+        fp_row = {'Metric': 'FP_Rate_%'}
+        disc_row = {'Metric': 'Discrimination'}
+        
+        for i, month in enumerate(months):
+            month_data = pattern_monthly[pattern_monthly['Year_Month'] == month]
+            if len(month_data) > 0:
+                tp_rate = month_data['TP_Rate_%'].iloc[0]
+                fp_rate = month_data['FP_Rate_%'].iloc[0]
+                discrimination = month_data['Discrimination'].iloc[0]
+            else:
+                tp_rate = 0
+                fp_rate = 0
+                discrimination = 0
+            
+            tp_row[display_months[i]] = f"{tp_rate:.1f}"
+            fp_row[display_months[i]] = f"{fp_rate:.1f}"
+            disc_row[display_months[i]] = f"{discrimination:.2f}"
+        
+        monthly_table.append(tp_row)
+        monthly_table.append(fp_row)
+        monthly_table.append(disc_row)
+        
+        monthly_df = pd.DataFrame(monthly_table)
+        print(monthly_df.to_string(index=False))
     
     # 4. Pre vs Post Context Analysis
     print("\n3. PRE VS POST CONTEXT ANALYSIS")
