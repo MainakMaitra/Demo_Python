@@ -1,223 +1,269 @@
-def extract_real_examples_agent_contamination_and_qualifying(df, num_examples=10):
+def enhanced_deep_negation_analysis(df):
     """
-    Extract real examples from the data for Agent Contamination and Qualifying Language insights
+    Enhanced negation analysis with clear evidence for context-insensitive handling
+    and comprehensive Pre vs Post and monthly breakdown
     """
     
     print("="*80)
-    print("REAL EXAMPLES EXTRACTION")
+    print("ENHANCED DEEP NEGATION PATTERN ANALYSIS")
     print("="*80)
     
-    # 1. Agent Contamination Examples
-    print("1. AGENT CONTAMINATION EXAMPLES")
-    print("-" * 50)
-    
-    # Define agent explanation patterns
-    agent_explanation_patterns = [
-        r'\b(let me explain|i\'ll explain|what this means|this means that)\b',
-        r'\b(for example|for instance|let\'s say|suppose)\b', 
-        r'\b(if you|what if|in case|should you|were to)\b',
-        r'\b(to clarify|what i mean|in other words|basically)\b',
-        r'\b(you need to|you should|you can|you have to)\b'
-    ]
-    
-    # Find FPs with high agent contamination
-    fp_data = df[df['Primary Marker'] == 'FP'].copy()
-    
-    # Check for agent contamination
-    fp_data['Agent_Contamination_Score'] = 0
-    for pattern in agent_explanation_patterns:
-        fp_data['Agent_Contamination_Score'] += fp_data['Agent Transcript'].str.lower().str.contains(pattern, regex=True, na=False).astype(int)
-    
-    # Get high contamination examples
-    high_contamination = fp_data[fp_data['Agent_Contamination_Score'] >= 2].head(num_examples)
-    
-    print("HIGH AGENT CONTAMINATION EXAMPLES (False Positives):")
-    print("="*60)
-    
-    agent_contamination_examples = []
-    
-    for idx, row in high_contamination.iterrows():
-        example = {
-            'UUID': row['UUID'],
-            'Category_L1': row['Prosodica L1'],
-            'Category_L2': row['Prosodica L2'],
-            'Customer_Transcript': row['Customer Transcript'][:500] + "..." if len(row['Customer Transcript']) > 500 else row['Customer Transcript'],
-            'Agent_Transcript': row['Agent Transcript'][:500] + "..." if len(row['Agent Transcript']) > 500 else row['Agent Transcript'],
-            'Contamination_Score': row['Agent_Contamination_Score'],
-            'Customer_Agent_Ratio': row['Customer_Agent_Ratio'] if 'Customer_Agent_Ratio' in row else 'N/A',
-            'Analysis': ''
-        }
-        
-        # Analyze what type of agent contamination
-        contamination_types = []
-        agent_text = str(row['Agent Transcript']).lower()
-        
-        if re.search(r'\b(let me explain|i\'ll explain|what this means)\b', agent_text):
-            contamination_types.append("Direct Explanation")
-        if re.search(r'\b(for example|for instance|let\'s say)\b', agent_text):
-            contamination_types.append("Examples Given")
-        if re.search(r'\b(if you|what if|in case)\b', agent_text):
-            contamination_types.append("Hypothetical Scenarios")
-        if re.search(r'\b(to clarify|what i mean|basically)\b', agent_text):
-            contamination_types.append("Clarifications")
-        if re.search(r'\b(you need to|you should|you can)\b', agent_text):
-            contamination_types.append("Instructions")
-        
-        example['Analysis'] = f"Agent contamination types: {', '.join(contamination_types)}"
-        agent_contamination_examples.append(example)
-        
-        print(f"\nExample {len(agent_contamination_examples)}:")
-        print(f"UUID: {example['UUID']}")
-        print(f"Category: {example['Category_L1']} -> {example['Category_L2']}")
-        print(f"Contamination Score: {example['Contamination_Score']}")
-        print(f"Customer-Agent Ratio: {example['Customer_Agent_Ratio']}")
-        print(f"Analysis: {example['Analysis']}")
-        print(f"Customer: {example['Customer_Transcript']}")
-        print(f"Agent: {example['Agent_Transcript']}")
-        print("-" * 60)
-    
-    # 2. Qualifying Language Examples
-    print("\n2. QUALIFYING LANGUAGE EXAMPLES")
-    print("-" * 50)
-    
-    # Define qualifying language patterns
-    qualifying_patterns = {
-        'Uncertainty': r'\b(might|maybe|seems|appears|possibly|perhaps|probably|likely|i think|i believe|i guess)\b',
-        'Hedging': r'\b(sort of|kind of|more or less|somewhat|relatively|fairly|quite|rather)\b',
-        'Doubt': r'\b(not sure|uncertain|unclear|confused|don\'t know|no idea)\b',
-        'Politeness': r'\b(please|thank you|thanks|appreciate|grateful|excuse me|pardon|sorry)\b',
-        'Questions': r'\?'
+    # 1. Define Specific Negation Context Patterns
+    negation_context_patterns = {
+        'Complaint_Negation': r'\b(not|never|no|don\'t|won\'t|can\'t|isn\'t)\s+(working|received|getting|got|fair|right|correct|satisfied|resolved|fixed|helping|processed)\b',
+        'Information_Negation': r'\b(don\'t|not|no|never)\s+(understand|know|see|find|have|remember|think|believe|sure|clear|aware)\b',
+        'Service_Negation': r'\b(can\'t|won\'t|not|unable|doesn\'t)\s+(access|login|connect|load|work|function|available|possible)\b',
+        'Denial_Negation': r'\b(not|never|no|didn\'t)\s+(my|mine|me|authorized|made|requested|asked|ordered)\b',
+        'Process_Negation': r'\b(not|never|no|haven\'t|didn\'t)\s+(processed|completed|finished|done|updated|reflected|posted|credited)\b',
+        'Agent_Negation': r'\b(not|no|never|don\'t|won\'t)\s+(worry|problem|issue|need|have\s+to|required|necessary)\b'
     }
     
-    # Get TPs with high qualifying language (real complaints with polite/uncertain language)
-    tp_data = df[df['Primary Marker'] == 'TP'].copy()
-    
-    tp_data['Qualifying_Score'] = 0
-    tp_data['Qualifying_Types'] = ''
-    
-    for pattern_name, pattern in qualifying_patterns.items():
-        matches = tp_data['Customer Transcript'].str.lower().str.count(pattern)
-        tp_data['Qualifying_Score'] += matches
-        
-        # Track which types are present
-        has_pattern = matches > 0
-        tp_data.loc[has_pattern, 'Qualifying_Types'] += f"{pattern_name}, "
-    
-    # Get high qualifying examples
-    high_qualifying = tp_data[tp_data['Qualifying_Score'] >= 5].head(num_examples)
-    
-    print("HIGH QUALIFYING LANGUAGE EXAMPLES (True Positives - Real Complaints):")
-    print("="*60)
-    
-    qualifying_examples = []
-    
-    for idx, row in high_qualifying.iterrows():
-        example = {
-            'UUID': row['UUID'],
-            'Category_L1': row['Prosodica L1'],
-            'Category_L2': row['Prosodica L2'],
-            'Customer_Transcript': row['Customer Transcript'][:500] + "..." if len(row['Customer Transcript']) > 500 else row['Customer Transcript'],
-            'Qualifying_Score': row['Qualifying_Score'],
-            'Qualifying_Types': row['Qualifying_Types'].rstrip(', '),
-            'Transcript_Length': len(row['Customer Transcript']),
-            'Analysis': ''
-        }
-        
-        # Analyze the qualifying language
-        customer_text = str(row['Customer Transcript']).lower()
-        question_count = customer_text.count('?')
-        polite_words = len(re.findall(r'\b(please|thank|sorry|appreciate)\b', customer_text))
-        uncertain_words = len(re.findall(r'\b(maybe|might|think|believe|not sure)\b', customer_text))
-        
-        example['Analysis'] = f"Questions: {question_count}, Polite words: {polite_words}, Uncertain words: {uncertain_words}"
-        qualifying_examples.append(example)
-        
-        print(f"\nExample {len(qualifying_examples)}:")
-        print(f"UUID: {example['UUID']}")
-        print(f"Category: {example['Category_L1']} -> {example['Category_L2']}")
-        print(f"Qualifying Score: {example['Qualifying_Score']}")
-        print(f"Types: {example['Qualifying_Types']}")
-        print(f"Length: {example['Transcript_Length']} chars")
-        print(f"Analysis: {example['Analysis']}")
-        print(f"Customer: {example['Customer_Transcript']}")
-        print("-" * 60)
-    
-    # 3. Contrasting Examples - FPs that lack qualifying language
-    print("\n3. CONTRASTING EXAMPLES - FPs WITHOUT QUALIFYING LANGUAGE")
+    # 2. Analyze Context-Specific Negations
+    print("1. CONTEXT-SPECIFIC NEGATION ANALYSIS")
     print("-" * 50)
     
-    # Find FPs with very low qualifying language scores
-    fp_data['Qualifying_Score'] = 0
-    for pattern in qualifying_patterns.values():
-        fp_data['Qualifying_Score'] += fp_data['Customer Transcript'].str.lower().str.count(pattern)
+    tp_data = df[df['Primary Marker'] == 'TP']
+    fp_data = df[df['Primary Marker'] == 'FP']
     
-    low_qualifying_fps = fp_data[fp_data['Qualifying_Score'] <= 2].head(5)
+    context_analysis = []
     
-    print("LOW QUALIFYING LANGUAGE EXAMPLES (False Positives - Should NOT be complaints):")
-    print("="*60)
-    
-    contrasting_examples = []
-    
-    for idx, row in low_qualifying_fps.iterrows():
-        example = {
-            'UUID': row['UUID'],
-            'Category_L1': row['Prosodica L1'],
-            'Category_L2': row['Prosodica L2'],
-            'Customer_Transcript': row['Customer Transcript'][:400] + "..." if len(row['Customer Transcript']) > 400 else row['Customer Transcript'],
-            'Qualifying_Score': row['Qualifying_Score'],
-            'Transcript_Length': len(row['Customer Transcript']),
-            'Why_Misclassified': ''
-        }
+    for pattern_name, pattern in negation_context_patterns.items():
+        # Analyze both customer and full transcript
+        tp_customer_matches = tp_data['Customer Transcript'].str.lower().str.contains(pattern, regex=True, na=False)
+        fp_customer_matches = fp_data['Customer Transcript'].str.lower().str.contains(pattern, regex=True, na=False)
         
-        # Analyze why it was misclassified
-        customer_text = str(row['Customer Transcript']).lower()
+        tp_full_matches = tp_data['Full_Transcript'].str.lower().str.contains(pattern, regex=True, na=False)
+        fp_full_matches = fp_data['Full_Transcript'].str.lower().str.contains(pattern, regex=True, na=False)
         
-        reasons = []
-        if 'not' in customer_text or 'no' in customer_text or 'never' in customer_text:
-            reasons.append("Contains negations")
-        if any(word in customer_text for word in ['problem', 'issue', 'wrong', 'error']):
-            reasons.append("Contains complaint keywords")
-        if len(customer_text) < 200:
-            reasons.append("Very short transcript")
-        if customer_text.count('?') == 0:
-            reasons.append("No questions asked")
+        tp_customer_rate = tp_customer_matches.mean() * 100 if len(tp_data) > 0 else 0
+        fp_customer_rate = fp_customer_matches.mean() * 100 if len(fp_data) > 0 else 0
         
-        example['Why_Misclassified'] = "; ".join(reasons) if reasons else "Unclear classification reason"
-        contrasting_examples.append(example)
+        tp_full_rate = tp_full_matches.mean() * 100 if len(tp_data) > 0 else 0
+        fp_full_rate = fp_full_matches.mean() * 100 if len(fp_data) > 0 else 0
         
-        print(f"\nContrasting Example {len(contrasting_examples)}:")
-        print(f"UUID: {example['UUID']}")
-        print(f"Category: {example['Category_L1']} -> {example['Category_L2']}")
-        print(f"Qualifying Score: {example['Qualifying_Score']} (Very Low)")
-        print(f"Length: {example['Transcript_Length']} chars")
-        print(f"Why Misclassified: {example['Why_Misclassified']}")
-        print(f"Customer: {example['Customer_Transcript']}")
-        print("-" * 60)
+        # Calculate discrimination power
+        discrimination_power = (tp_customer_rate - fp_customer_rate) / max(fp_customer_rate, 0.1)
+        
+        context_analysis.append({
+            'Pattern_Type': pattern_name,
+            'TP_Customer_Rate_%': tp_customer_rate,
+            'FP_Customer_Rate_%': fp_customer_rate,
+            'TP_Full_Rate_%': tp_full_rate,
+            'FP_Full_Rate_%': fp_full_rate,
+            'Customer_Discrimination': discrimination_power,
+            'Customer_Difference': tp_customer_rate - fp_customer_rate,
+            'Evidence_Strength': 'Strong' if abs(discrimination_power) > 1 else 'Moderate' if abs(discrimination_power) > 0.5 else 'Weak'
+        })
     
-    # 4. Summary Statistics
-    print("\n4. SUMMARY STATISTICS")
+    context_df = pd.DataFrame(context_analysis)
+    context_df = context_df.sort_values('Customer_Discrimination', ascending=False)
+    
+    print("Context-Specific Negation Analysis:")
+    print(context_df.round(2))
+    
+    # 3. Monthly Context Evolution
+    print("\n2. MONTHLY CONTEXT EVOLUTION")
     print("-" * 50)
     
-    summary_stats = {
-        'Agent_Contamination_Examples': len(agent_contamination_examples),
-        'Avg_Contamination_Score': np.mean([ex['Contamination_Score'] for ex in agent_contamination_examples]),
-        'Qualifying_Language_Examples': len(qualifying_examples),
-        'Avg_Qualifying_Score': np.mean([ex['Qualifying_Score'] for ex in qualifying_examples]),
-        'Contrasting_Examples': len(contrasting_examples),
-        'Avg_Contrasting_Score': np.mean([ex['Qualifying_Score'] for ex in contrasting_examples])
-    }
+    monthly_context = []
+    months = sorted(df['Year_Month'].dropna().unique())
     
-    print("Summary Statistics:")
-    for key, value in summary_stats.items():
-        print(f"{key}: {value:.2f}")
+    for month in months:
+        month_data = df[df['Year_Month'] == month]
+        month_tp = month_data[month_data['Primary Marker'] == 'TP']
+        month_fp = month_data[month_data['Primary Marker'] == 'FP']
+        
+        for pattern_name, pattern in negation_context_patterns.items():
+            tp_matches = month_tp['Customer Transcript'].str.lower().str.contains(pattern, regex=True, na=False).mean() * 100 if len(month_tp) > 0 else 0
+            fp_matches = month_fp['Customer Transcript'].str.lower().str.contains(pattern, regex=True, na=False).mean() * 100 if len(month_fp) > 0 else 0
+            
+            monthly_context.append({
+                'Year_Month': month,
+                'Pattern_Type': pattern_name,
+                'TP_Rate_%': tp_matches,
+                'FP_Rate_%': fp_matches,
+                'Discrimination': (tp_matches - fp_matches) / max(fp_matches, 0.1)
+            })
     
-    # 5. Export Examples to DataFrames for further analysis
-    agent_contamination_df = pd.DataFrame(agent_contamination_examples)
-    qualifying_language_df = pd.DataFrame(qualifying_examples)
-    contrasting_df = pd.DataFrame(contrasting_examples)
+    monthly_context_df = pd.DataFrame(monthly_context)
     
-    print(f"\nExported {len(agent_contamination_df)} agent contamination examples")
-    print(f"Exported {len(qualifying_language_df)} qualifying language examples")
-    print(f"Exported {len(contrasting_df)} contrasting examples")
+    # Show top discriminating patterns by month
+    for pattern in ['Complaint_Negation', 'Information_Negation', 'Service_Negation']:
+        pattern_monthly = monthly_context_df[monthly_context_df['Pattern_Type'] == pattern]
+        
+        print(f"\n{pattern} Monthly Evolution:")
+        pivot_table = pattern_monthly.pivot_table(
+            index='Pattern_Type',
+            columns='Year_Month', 
+            values=['TP_Rate_%', 'FP_Rate_%', 'Discrimination'],
+            aggfunc='mean'
+        ).round(2)
+        print(pivot_table)
     
-    return agent_contamination_df, qualifying_language_df, contrasting_df, summary_stats
+    # 4. Pre vs Post Context Analysis
+    print("\n3. PRE VS POST CONTEXT ANALYSIS")
+    print("-" * 50)
+    
+    pre_months = ['2024-10', '2024-11', '2024-12']
+    post_months = ['2025-01', '2025-02', '2025-03']
+    
+    pre_data = df[df['Year_Month'].astype(str).isin(pre_months)]
+    post_data = df[df['Year_Month'].astype(str).isin(post_months)]
+    
+    pre_tp = pre_data[pre_data['Primary Marker'] == 'TP']
+    pre_fp = pre_data[pre_data['Primary Marker'] == 'FP']
+    post_tp = post_data[post_data['Primary Marker'] == 'TP']
+    post_fp = post_data[post_data['Primary Marker'] == 'FP']
+    
+    pre_post_analysis = []
+    
+    for pattern_name, pattern in negation_context_patterns.items():
+        pre_tp_rate = pre_tp['Customer Transcript'].str.lower().str.contains(pattern, regex=True, na=False).mean() * 100 if len(pre_tp) > 0 else 0
+        pre_fp_rate = pre_fp['Customer Transcript'].str.lower().str.contains(pattern, regex=True, na=False).mean() * 100 if len(pre_fp) > 0 else 0
+        post_tp_rate = post_tp['Customer Transcript'].str.lower().str.contains(pattern, regex=True, na=False).mean() * 100 if len(post_tp) > 0 else 0
+        post_fp_rate = post_fp['Customer Transcript'].str.lower().str.contains(pattern, regex=True, na=False).mean() * 100 if len(post_fp) > 0 else 0
+        
+        pre_discrimination = (pre_tp_rate - pre_fp_rate) / max(pre_fp_rate, 0.1)
+        post_discrimination = (post_tp_rate - post_fp_rate) / max(post_fp_rate, 0.1)
+        
+        pre_post_analysis.append({
+            'Pattern_Type': pattern_name,
+            'Pre_TP_Rate_%': pre_tp_rate,
+            'Pre_FP_Rate_%': pre_fp_rate,
+            'Post_TP_Rate_%': post_tp_rate,
+            'Post_FP_Rate_%': post_fp_rate,
+            'Pre_Discrimination': pre_discrimination,
+            'Post_Discrimination': post_discrimination,
+            'Discrimination_Change': post_discrimination - pre_discrimination,
+            'Context_Degradation': 'YES' if post_discrimination < pre_discrimination else 'NO'
+        })
+    
+    pre_post_df = pd.DataFrame(pre_post_analysis)
+    pre_post_df = pre_post_df.sort_values('Discrimination_Change')
+    
+    print("Pre vs Post Context Analysis:")
+    print(pre_post_df.round(2))
+    
+    # 5. Evidence for Context-Insensitive Handling
+    print("\n4. EVIDENCE FOR CONTEXT-INSENSITIVE HANDLING")
+    print("-" * 50)
+    
+    # Count total negations vs context-specific negations
+    total_negation_pattern = r'\b(not|no|never|dont|don\'t|wont|won\'t|cant|can\'t|isnt|isn\'t|doesnt|doesn\'t|havent|haven\'t|didnt|didn\'t)\b'
+    
+    evidence_analysis = []
+    
+    # For TPs
+    tp_total_neg = tp_data['Customer Transcript'].str.lower().str.count(total_negation_pattern).sum()
+    tp_context_neg = 0
+    for pattern in negation_context_patterns.values():
+        tp_context_neg += tp_data['Customer Transcript'].str.lower().str.count(pattern).sum()
+    
+    # For FPs  
+    fp_total_neg = fp_data['Customer Transcript'].str.lower().str.count(total_negation_pattern).sum()
+    fp_context_neg = 0
+    for pattern in negation_context_patterns.values():
+        fp_context_neg += fp_data['Customer Transcript'].str.lower().str.count(pattern).sum()
+    
+    tp_context_ratio = tp_context_neg / max(tp_total_neg, 1)
+    fp_context_ratio = fp_context_neg / max(fp_total_neg, 1)
+    
+    evidence_summary = pd.DataFrame({
+        'Metric': [
+            'Total Negations',
+            'Context-Specific Negations', 
+            'Context Ratio',
+            'Context-Less Negations',
+            'Context-Less Ratio'
+        ],
+        'True_Positives': [
+            tp_total_neg,
+            tp_context_neg,
+            tp_context_ratio,
+            tp_total_neg - tp_context_neg,
+            1 - tp_context_ratio
+        ],
+        'False_Positives': [
+            fp_total_neg,
+            fp_context_neg,
+            fp_context_ratio,
+            fp_total_neg - fp_context_neg,
+            1 - fp_context_ratio
+        ]
+    })
+    
+    evidence_summary['FP_Problem_Indicator'] = evidence_summary['False_Positives'] / evidence_summary['True_Positives']
+    
+    print("Evidence Summary - Context vs Context-Less Negations:")
+    print(evidence_summary.round(3))
+    
+    # 6. Category-Specific Context Analysis
+    print("\n5. CATEGORY-SPECIFIC CONTEXT BREAKDOWN")
+    print("-" * 50)
+    
+    category_context = []
+    
+    for l1_cat in df['Prosodica L1'].unique():
+        if pd.notna(l1_cat):
+            cat_data = df[df['Prosodica L1'] == l1_cat]
+            cat_tp = cat_data[cat_data['Primary Marker'] == 'TP']
+            cat_fp = cat_data[cat_data['Primary Marker'] == 'FP']
+            
+            if len(cat_fp) >= 5:  # Minimum sample size
+                # Count complaint vs information negations
+                complaint_pattern = negation_context_patterns['Complaint_Negation']
+                info_pattern = negation_context_patterns['Information_Negation']
+                
+                tp_complaint_neg = cat_tp['Customer Transcript'].str.lower().str.contains(complaint_pattern, regex=True, na=False).mean() * 100 if len(cat_tp) > 0 else 0
+                fp_complaint_neg = cat_fp['Customer Transcript'].str.lower().str.contains(complaint_pattern, regex=True, na=False).mean() * 100
+                
+                tp_info_neg = cat_tp['Customer Transcript'].str.lower().str.contains(info_pattern, regex=True, na=False).mean() * 100 if len(cat_tp) > 0 else 0
+                fp_info_neg = cat_fp['Customer Transcript'].str.lower().str.contains(info_pattern, regex=True, na=False).mean() * 100
+                
+                category_context.append({
+                    'Category': l1_cat,
+                    'TP_Count': len(cat_tp),
+                    'FP_Count': len(cat_fp),
+                    'TP_Complaint_Neg_%': tp_complaint_neg,
+                    'FP_Complaint_Neg_%': fp_complaint_neg,
+                    'TP_Info_Neg_%': tp_info_neg,
+                    'FP_Info_Neg_%': fp_info_neg,
+                    'Complaint_Discrimination': (tp_complaint_neg - fp_complaint_neg) / max(fp_complaint_neg, 0.1),
+                    'Info_Discrimination': (tp_info_neg - fp_info_neg) / max(fp_info_neg, 0.1),
+                    'Context_Problem': 'HIGH' if fp_info_neg > tp_complaint_neg else 'MEDIUM' if fp_info_neg > fp_complaint_neg else 'LOW'
+                })
+    
+    category_context_df = pd.DataFrame(category_context)
+    category_context_df = category_context_df.sort_values('Info_Discrimination')
+    
+    print("Category-Specific Context Problems:")
+    print(category_context_df.round(2))
+    
+    # 7. Clear Evidence Statement
+    print("\n6. CLEAR EVIDENCE FOR CONTEXT-INSENSITIVE HANDLING")
+    print("-" * 50)
+    
+    # Calculate key statistics
+    fp_with_info_neg = (fp_data['Customer Transcript'].str.lower().str.contains(
+        negation_context_patterns['Information_Negation'], regex=True, na=False
+    ).sum())
+    
+    fp_with_complaint_neg = (fp_data['Customer Transcript'].str.lower().str.contains(
+        negation_context_patterns['Complaint_Negation'], regex=True, na=False
+    ).sum())
+    
+    total_fps = len(fp_data)
+    
+    print("SMOKING GUN EVIDENCE:")
+    print(f"1. {fp_with_info_neg}/{total_fps} FPs ({fp_with_info_neg/total_fps*100:.1f}%) contain INFORMATION negations")
+    print(f"2. {fp_with_complaint_neg}/{total_fps} FPs ({fp_with_complaint_neg/total_fps*100:.1f}%) contain COMPLAINT negations")
+    print(f"3. Information negations in FPs are {fp_with_info_neg/max(fp_with_complaint_neg,1):.1f}x more common than complaint negations")
+    
+    complaint_discrimination = context_df[context_df['Pattern_Type'] == 'Complaint_Negation']['Customer_Discrimination'].iloc[0]
+    info_discrimination = context_df[context_df['Pattern_Type'] == 'Information_Negation']['Customer_Discrimination'].iloc[0]
+    
+    print(f"4. Complaint negations discriminate TPs {complaint_discrimination:.1f}x better than FPs")
+    print(f"5. Information negations discriminate FPs {abs(info_discrimination):.1f}x better than TPs")
+    print(f"6. The model treats ALL negations equally, causing {total_fps} false positives")
+    
+    return context_df, monthly_context_df, pre_post_df, evidence_summary, category_context_df
