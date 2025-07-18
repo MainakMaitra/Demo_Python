@@ -1,43 +1,298 @@
-Minutes of Meeting (MoM)
-Subject: SSG VOC – Introductory Discussion
-Date: 17th July 2025
-Attendees: Mainak Maitra, Amy Martinez, Mikki Ortega
-Context: SSG VOC Discussion
-(SSG = Specialist Services Group, VOC = Voice of Customer)
+PQC Table Structure & Column Mapping
+1. Table-wise Column Lists
+pqc_sendbacks_reported
+entry_id
 
-1. Background
-A session was conducted with Mikkey’s team to discuss the level of effort and feasibility of obtaining more meaningful data for the SSG VOC.
+sb_clfb_num
 
-The objective is to compare VOC survey results from two sources:
+irr_case_number
 
-The survey completed after interaction with customer service.
+sb_case_status
 
-The SSG-specific survey completed separately.
+date_sent
 
-2. Discussion Points
-Mikkey’s team showcased a dashboard published on a monthly basis.
+date_received
 
-The dashboard includes survey responses submitted by customers after service calls.
+date_closed
 
-Customers are asked three questions, focused on:
+comments
 
-Whether their problems were resolved.
+date_received_by_bank
 
-Whether they would recommend Synchrony.
+date_received_by_quality
 
-It was noted that 2342 customers responded to the SSG survey.
+ccr_rsrch_specialist
 
-The dashboard data is being prepared by the Mario team.
+ccr_rsrch_specialist_sso
 
-The next step involves understanding the source data powering the Tableau dashboard.
+ccr_rsrch_manager
 
-The final goal is to create a comparison of the experience based on the surveys from a customer journey perspective to understand overall satisfaction.
+ccr_rsrch_manager_sso
 
-3. Dashboard Metrics (Current Format of Publication)
-The dashboard currently presents VOC data along the following dimensions, comparing VOC SSG and VOC CS across months from Jan’25 to Jun’25:
+sb_reason
 
-Customer Satisfaction
+modified_dt
 
-Problem Resolution
+created_dt
 
-Net Promoter Score (NPS)
+pqc_defects_reported
+entry_id
+
+clfb_number
+
+specialist_sso
+
+specialist_name
+
+ccr_manager_sso
+
+manager_name
+
+submitter_sso
+
+irr_case_number
+
+defect_type_category
+
+sub_category
+
+control_question
+
+question_outcome
+
+pqc_actioned_items
+
+non_actionable_defects
+
+modified_dt
+
+created_dt
+
+pqc_case_questions_aggr
+s_no
+
+case_key
+
+pqc_assignment_date
+
+pqc_sso
+
+pqc_name
+
+case_number
+
+defect_y_question_ct
+
+defect_na_question_ct
+
+defect_pass_question_ct
+
+defect_blank_question_ct
+
+case_key_lvl_defect_flag
+
+compliance_defect_question_count
+
+case_key_lvl_compliance_defect_flag
+
+procedural_defect_question_count
+
+case_key_lvl_procedural_defect_flag
+
+sendback_y_question_ct
+
+sendback_n_question_ct
+
+sendback_na_question_ct
+
+sendback_blank_question_ct
+
+case_key_lvl_sendback_flag
+
+action_y_question_ct
+
+action_n_question_ct
+
+action_na_question_ct
+
+action_blank_question_ct
+
+case_key_lvl_action_flag
+
+pqc_case_closures
+s_no
+
+case_key
+
+pqc_sso
+
+pqc_name
+
+pqc_assignment_date
+
+pqc_closure_status
+
+pqc_closure_date
+
+case_number
+
+indexing_specialist_sso
+
+ccr_investigator_sso
+
+sb_noactions_tkn_oncase
+
+sb_pqc_note_entrd_2case
+
+sb_reason_for_sendback
+
+sb_acm_status_chg_letter_edits_req
+
+a2c_trckd_chg_wrdoc_upld_2case
+
+a2c_ltr_in_clsr_pdf
+
+a2c_finalrespn_12r_acm_docid
+
+a2c_status_letter_aprvd
+
+a2c_ack_pqc_rvw_to_close_in_ccrmgr
+
+a2c_cmplnt_resp_aprvd_chg_2yes
+
+a2c_rqc_clfb_casenum
+
+regc_acn_prntr_inr_self
+
+regc_status_submitd_cfpb_occ_portal
+
+regc_ltr_in_clsr_pdf3
+
+regc_finalresp_12r_acm_docid4
+
+regc_acs_prtl_cmpltt_upld
+
+regc_status_cmpltt_rspns_sent
+
+regc_rslv_procid_wwr
+
+regc_status_cmpltt_rslvd_irrclsd
+
+regc_rvw_pndng_inr_4prt_rvw
+
+regc_actn_prnttn_ccr_clsr_lst
+
+regc_ack_clfb_num
+
+regc_trckd_chg_wrdoc_upld_2case2
+
+regc_status_letter_aprvd5
+
+regc_ack_pqc_rvw_to_close_in_ccrmgr6
+
+regc_cmplnt_resp_aprvd_chg_2yes7
+
+closure_first_touch_time
+
+source
+
+pqc_case_assignments
+s_no
+
+case_key
+
+pqc_sso
+
+pqc_name
+
+pqc_assignment_date
+
+case_number
+
+assignment_date_validation
+
+was_this_case_sentback
+
+times_sent_back
+
+indexing_specialist_sso
+
+ccr_investigator_sso
+
+is_spanish_case
+
+read_complaint_or_inquiry
+
+complaint_comments
+
+read_draft_response
+
+draft_response_comments
+
+check_4ccr_calltocustomer
+
+contactid_andor_var5
+
+source
+
+pqc_case_questions
+s_no
+
+case_key
+
+pqc_sso
+
+pqc_name
+
+pqc_assignment_date
+
+case_number
+
+contactid_andor_var5
+
+question_num
+
+question_section
+
+question_type
+
+question
+
+question_first_touch_time
+
+defect_check_src
+
+defect_check
+
+defect_details
+
+actionable_check
+
+action_details
+
+sendback_check
+
+sendback_details
+
+indexing_specialist_sso
+
+ccr_investigator_sso
+
+source
+
+2. Overlapping Column Names Across Tables
+Column Name	Tables Appearing In
+entry_id	pqc_sendbacks_reported, pqc_defects_reported
+irr_case_number	pqc_sendbacks_reported, pqc_defects_reported
+created_dt	pqc_sendbacks_reported, pqc_defects_reported
+modified_dt	pqc_sendbacks_reported, pqc_defects_reported
+s_no	pqc_case_questions_aggr, pqc_case_closures, pqc_case_assignments, pqc_case_questions
+case_key	pqc_case_questions_aggr, pqc_case_closures, pqc_case_assignments, pqc_case_questions
+pqc_sso	pqc_case_questions_aggr, pqc_case_closures, pqc_case_assignments, pqc_case_questions
+pqc_name	pqc_case_questions_aggr, pqc_case_closures, pqc_case_assignments, pqc_case_questions
+pqc_assignment_date	pqc_case_questions_aggr, pqc_case_closures, pqc_case_assignments, pqc_case_questions
+case_number	pqc_case_questions_aggr, pqc_case_closures, pqc_case_assignments, pqc_case_questions
+contactid_andor_var5	pqc_case_assignments, pqc_case_questions
+indexing_specialist_sso	pqc_case_closures, pqc_case_assignments, pqc_case_questions
+ccr_investigator_sso	pqc_case_closures, pqc_case_assignments, pqc_case_questions
+source	pqc_case_closures, pqc_case_assignments, pqc_case_questions
