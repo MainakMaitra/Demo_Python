@@ -1,5 +1,6 @@
 # LIME-Based Interpretability Analysis for Complaints Precision Drop Investigation
 # Enhanced Explainability for Key Insights: Context-Blind Negation, Agent Contamination, and Qualifying Language
+# FIXED VERSION - Compatible with latest LIME library
 
 import pandas as pd
 import numpy as np
@@ -93,6 +94,12 @@ class ComplaintsLIMEAnalyzer:
             self.df_main[f'Has_{pattern_name}'] = self.df_main['Customer_Transcript_Clean'].str.lower().str.contains(
                 pattern, regex=True, na=False
             ).astype(int)
+        
+        # Count negations
+        self.df_main['Customer_Negation_Count'] = (
+            self.df_main[['Has_Simple_Negation', 'Has_Information_Negation', 
+                         'Has_Service_Negation', 'Has_Complaint_Negation']].sum(axis=1)
+        )
         
         # Overall negation flag
         self.df_main['Has_Negation'] = (
@@ -225,8 +232,8 @@ class ComplaintsLIMEAnalyzer:
         
         for idx, (_, row) in enumerate(sample_df.iterrows(), 1):
             print(f"\nExample {idx}:")
-            print(f"UUID: {row['UUID']}")
-            print(f"Category: {row['Prosodica L1']} -> {row['Prosodica L2']}")
+            print(f"UUID: {row.get('uuid', row.get('UUID', 'N/A'))}")
+            print(f"Category: {row.get('Prosodica L1', 'N/A')} -> {row.get('Prosodica L2', 'N/A')}")
             print(f"Classification: {'FP (Problematic)' if row['Is_Problematic'] else 'TP (Correct)'}")
             
             if insight_type == 'negation':
@@ -292,6 +299,11 @@ class ComplaintsLIMEAnalyzer:
                 print(f"Insufficient data for {insight} model")
                 continue
             
+            # Check if we have both classes
+            if len(y_filtered.unique()) < 2:
+                print(f"Insufficient class diversity for {insight} model")
+                continue
+            
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
                 X_filtered, y_filtered, test_size=0.2, random_state=42, stratify=y_filtered
@@ -346,10 +358,10 @@ class ComplaintsLIMEAnalyzer:
         model = self.models[insight_type]
         examples = self.examples[insight_type].head(num_explanations)
         
-        # Initialize LIME explainer
+        # Initialize LIME explainer - FIXED VERSION
+        # Removed the 'mode' parameter which doesn't exist in newer LIME versions
         explainer = LimeTextExplainer(
-            class_names=['No Pattern', 'Has Pattern'],
-            mode='classification'
+            class_names=['No Pattern', 'Has Pattern']
         )
         
         explanations = []
@@ -380,9 +392,9 @@ class ComplaintsLIMEAnalyzer:
                 
                 # Store explanation with metadata
                 explanations.append({
-                    'uuid': row['UUID'],
-                    'category_l1': row['Prosodica L1'],
-                    'category_l2': row['Prosodica L2'],
+                    'uuid': row.get('uuid', row.get('UUID', f'example_{idx}')),
+                    'category_l1': row.get('Prosodica L1', 'N/A'),
+                    'category_l2': row.get('Prosodica L2', 'N/A'),
                     'is_problematic': row['Is_Problematic'],
                     'text': text_to_explain,
                     'explanation': explanation,
@@ -520,9 +532,12 @@ class ComplaintsLIMEAnalyzer:
         # Save individual LIME explanations as HTML
         if save_html:
             for idx, exp_data in enumerate(explanations[:5]):  # Save first 5
-                html_filename = f'lime_explanation_{insight_type}_example_{idx+1}_{timestamp}.html'
-                exp_data['explanation'].save_to_file(html_filename)
-                print(f"Individual explanation saved as: {html_filename}")
+                try:
+                    html_filename = f'lime_explanation_{insight_type}_example_{idx+1}_{timestamp}.html'
+                    exp_data['explanation'].save_to_file(html_filename)
+                    print(f"Individual explanation saved as: {html_filename}")
+                except Exception as e:
+                    print(f"Warning: Could not save HTML explanation {idx+1}: {str(e)}")
     
     def generate_insight_summary_report(self):
         """Generate a comprehensive summary report of all insights"""
@@ -609,38 +624,40 @@ class ComplaintsLIMEAnalyzer:
         
         # Export summary
         summary_filename = f'lime_analysis_summary_{timestamp}.xlsx'
-        with pd.ExcelWriter(summary_filename, engine='xlsxwriter') as writer:
-            summary_df.to_excel(writer, sheet_name='Summary', index=False)
-            
-            # Export examples for each insight
-            for insight_type in ['negation', 'agent_contamination', 'qualifying_language']:
-                if insight_type in self.examples:
-                    examples = self.examples[insight_type]
-                    export_cols = [
-                        'UUID', 'Prosodica L1', 'Prosodica L2', 'Primary Marker',
-                        'Customer_Transcript_Clean', 'Agent_Transcript_Clean'
-                    ]
-                    
-                    # Add insight-specific columns
-                    if insight_type == 'negation':
-                        export_cols.extend(['Customer_Negation_Count', 'Has_Information_Negation'])
-                    elif insight_type == 'agent_contamination':
-                        export_cols.extend(['Has_Agent_Contamination', 'Contamination_Score'])
-                    elif insight_type == 'qualifying_language':
-                        export_cols.extend(['Has_Qualifying_Language', 'Qualifying_Score'])
-                    
-                    available_cols = [col for col in export_cols if col in examples.columns]
-                    examples[available_cols].to_excel(
-                        writer, 
-                        sheet_name=f'{insight_type.title()}_Examples', 
-                        index=False
-                    )
-        
-        print(f"\nSummary report exported to: {summary_filename}")
+        try:
+            with pd.ExcelWriter(summary_filename, engine='xlsxwriter') as writer:
+                summary_df.to_excel(writer, sheet_name='Summary', index=False)
+                
+                # Export examples for each insight
+                for insight_type in ['negation', 'agent_contamination', 'qualifying_language']:
+                    if insight_type in self.examples:
+                        examples = self.examples[insight_type]
+                        export_cols = [
+                            'uuid', 'UUID', 'Prosodica L1', 'Prosodica L2', 'Primary Marker',
+                            'Customer_Transcript_Clean', 'Agent_Transcript_Clean'
+                        ]
+                        
+                        # Add insight-specific columns
+                        if insight_type == 'negation':
+                            export_cols.extend(['Customer_Negation_Count', 'Has_Information_Negation'])
+                        elif insight_type == 'agent_contamination':
+                            export_cols.extend(['Has_Agent_Contamination', 'Contamination_Score'])
+                        elif insight_type == 'qualifying_language':
+                            export_cols.extend(['Has_Qualifying_Language', 'Qualifying_Score'])
+                        
+                        available_cols = [col for col in export_cols if col in examples.columns]
+                        examples[available_cols].to_excel(
+                            writer, 
+                            sheet_name=f'{insight_type.title()}_Examples', 
+                            index=False
+                        )
+            print(f"\nSummary report exported to: {summary_filename}")
+        except Exception as e:
+            print(f"Warning: Could not save Excel file: {str(e)}")
         
         return summary_df
 
-# Usage function
+# Usage function - UPDATED
 def run_comprehensive_lime_analysis(df_main, insights_to_analyze=None):
     """
     Run comprehensive LIME analysis for complaints detection insights
@@ -699,7 +716,7 @@ def run_comprehensive_lime_analysis(df_main, insights_to_analyze=None):
     
     return analyzer, summary_df
 
-# Advanced Analysis Functions
+# Advanced Analysis Functions - UPDATED
 
 def analyze_lime_pattern_evolution(analyzer, df_main):
     """
@@ -710,12 +727,24 @@ def analyze_lime_pattern_evolution(analyzer, df_main):
     print("LIME PATTERN EVOLUTION ANALYSIS (PRE VS POST)")
     print("="*80)
     
-    # Define periods
+    # Define periods - updated to handle different date formats
     pre_months = ['2024-10', '2024-11', '2024-12']
     post_months = ['2025-01', '2025-02', '2025-03']
     
-    df_main['Period'] = df_main['Year_Month'].apply(
-        lambda x: 'Pre' if str(x) in pre_months else 'Post' if str(x) in post_months else 'Other'
+    # Handle different possible column names for date
+    date_col = None
+    for col in ['Year_Month', 'year_month', 'date', 'Date', 'month', 'Month']:
+        if col in df_main.columns:
+            date_col = col
+            break
+    
+    if date_col is None:
+        print("Warning: No date column found for evolution analysis")
+        return {}
+    
+    df_main['Period'] = df_main[date_col].astype(str).apply(
+        lambda x: 'Pre' if any(month in str(x) for month in pre_months) else 
+                 'Post' if any(month in str(x) for month in post_months) else 'Other'
     )
     
     evolution_results = {}
@@ -734,8 +763,17 @@ def analyze_lime_pattern_evolution(analyzer, df_main):
         for exp_data in analyzer.explanations[insight_type]:
             uuid = exp_data['uuid']
             
-            # Find the period for this UUID
-            uuid_data = df_main[df_main['UUID'] == uuid]
+            # Find the period for this UUID - handle different UUID column names
+            uuid_col = None
+            for col in ['UUID', 'uuid', 'id', 'Id']:
+                if col in df_main.columns:
+                    uuid_col = col
+                    break
+            
+            if uuid_col is None:
+                continue
+                
+            uuid_data = df_main[df_main[uuid_col] == uuid]
             if len(uuid_data) == 0:
                 continue
                 
@@ -778,7 +816,8 @@ def analyze_lime_pattern_evolution(analyzer, df_main):
             evolution_df = evolution_df.sort_values('Pattern_Strength', ascending=False)
             
             print(f"Top 10 Features with Biggest Changes:")
-            print(evolution_df.head(10)[['Feature', 'Pre_Importance', 'Post_Importance', 'Change']].round(3))
+            display_df = evolution_df.head(10)[['Feature', 'Pre_Importance', 'Post_Importance', 'Change']].round(3)
+            print(display_df.to_string(index=False))
             
             # Identify emerging patterns
             emerging_patterns = evolution_df[
@@ -795,11 +834,15 @@ def analyze_lime_pattern_evolution(analyzer, df_main):
             if len(emerging_patterns) > 0:
                 for _, row in emerging_patterns.head(5).iterrows():
                     print(f"  '{row['Feature']}': {row['Pre_Importance']:.3f} → {row['Post_Importance']:.3f} (+{row['Change']:.3f})")
+            else:
+                print("  No significant emerging patterns detected")
             
             print(f"\nDECLINING PATTERNS ({len(declining_patterns)}):")
             if len(declining_patterns) > 0:
                 for _, row in declining_patterns.head(5).iterrows():
                     print(f"  '{row['Feature']}': {row['Pre_Importance']:.3f} → {row['Post_Importance']:.3f} ({row['Change']:.3f})")
+            else:
+                print("  No significant declining patterns detected")
             
             evolution_results[insight_type] = evolution_df
         else:
@@ -837,15 +880,21 @@ def create_insight_comparison_dashboard(analyzer):
                 feature_counts[feature] = feature_counts.get(feature, 0) + 1
         
         if len(all_importance) > 0:
+            most_common_feature, most_common_count = max(feature_counts.items(), key=lambda x: x[1]) if feature_counts else ("N/A", 0)
+            
             comparison_data.append({
                 'Insight': insight_type.title().replace('_', ' '),
                 'Avg_Feature_Importance': np.mean(all_importance),
                 'Max_Feature_Importance': np.max(all_importance),
                 'Unique_Features': len(feature_counts),
                 'Total_Explanations': len(explanations),
-                'Most_Common_Feature': max(feature_counts.items(), key=lambda x: x[1])[0],
-                'Most_Common_Feature_Count': max(feature_counts.values())
+                'Most_Common_Feature': most_common_feature,
+                'Most_Common_Feature_Count': most_common_count
             })
+    
+    if len(comparison_data) == 0:
+        print("No data available for comparison dashboard")
+        return pd.DataFrame()
     
     comparison_df = pd.DataFrame(comparison_data)
     
@@ -882,8 +931,13 @@ def create_insight_comparison_dashboard(analyzer):
     plt.tight_layout()
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    plt.savefig(f'insight_comparison_dashboard_{timestamp}.png', dpi=300, bbox_inches='tight')
-    print(f"Dashboard saved as: insight_comparison_dashboard_{timestamp}.png")
+    filename = f'insight_comparison_dashboard_{timestamp}.png'
+    try:
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        print(f"Dashboard saved as: {filename}")
+    except Exception as e:
+        print(f"Warning: Could not save dashboard: {str(e)}")
+    
     plt.show()
     
     return comparison_df
@@ -1044,27 +1098,29 @@ def extract_actionable_recommendations(analyzer, evolution_results=None):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     recommendations_filename = f'lime_actionable_recommendations_{timestamp}.xlsx'
     
-    with pd.ExcelWriter(recommendations_filename, engine='xlsxwriter') as writer:
-        summary_recommendations.to_excel(writer, sheet_name='Summary', index=False)
-        
-        # Detailed recommendations for each insight
-        for rec in recommendations:
-            insight_details = pd.DataFrame({
-                'Feature': rec['top_features'],
-                'Importance': rec['feature_importance'],
-                'Insight_Type': rec['insight_type']
-            })
-            insight_details.to_excel(
-                writer, 
-                sheet_name=f"{rec['insight_type'].title()}_Details", 
-                index=False
-            )
-    
-    print(f"\nRecommendations exported to: {recommendations_filename}")
+    try:
+        with pd.ExcelWriter(recommendations_filename, engine='xlsxwriter') as writer:
+            summary_recommendations.to_excel(writer, sheet_name='Summary', index=False)
+            
+            # Detailed recommendations for each insight
+            for rec in recommendations:
+                insight_details = pd.DataFrame({
+                    'Feature': rec['top_features'],
+                    'Importance': rec['feature_importance'],
+                    'Insight_Type': rec['insight_type']
+                })
+                insight_details.to_excel(
+                    writer, 
+                    sheet_name=f"{rec['insight_type'].title()}_Details", 
+                    index=False
+                )
+        print(f"\nRecommendations exported to: {recommendations_filename}")
+    except Exception as e:
+        print(f"Warning: Could not save recommendations file: {str(e)}")
     
     return summary_recommendations, recommendations
 
-# Integration function to tie everything together
+# Integration function to tie everything together - UPDATED
 def complete_lime_interpretability_pipeline(df_main, export_results=True):
     """
     Complete LIME interpretability pipeline for complaints analysis
@@ -1112,36 +1168,39 @@ def complete_lime_interpretability_pipeline(df_main, export_results=True):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         comprehensive_filename = f'complete_lime_analysis_{timestamp}.xlsx'
         
-        with pd.ExcelWriter(comprehensive_filename, engine='xlsxwriter') as writer:
-            # Summary sheets
-            summary_df.to_excel(writer, sheet_name='Analysis_Summary', index=False)
-            comparison_df.to_excel(writer, sheet_name='Insight_Comparison', index=False)
-            recommendations.to_excel(writer, sheet_name='Recommendations', index=False)
-            
-            # Evolution results
-            for insight_type, evolution_df in evolution_results.items():
-                evolution_df.to_excel(
-                    writer, 
-                    sheet_name=f'{insight_type.title()}_Evolution', 
-                    index=False
-                )
-            
-            # Examples for each insight
-            for insight_type in ['negation', 'agent_contamination', 'qualifying_language']:
-                if insight_type in analyzer.examples:
-                    examples = analyzer.examples[insight_type]
-                    export_cols = [
-                        'UUID', 'Prosodica L1', 'Prosodica L2', 'Primary Marker',
-                        'Customer_Transcript_Clean', 'Agent_Transcript_Clean'
-                    ]
-                    available_cols = [col for col in export_cols if col in examples.columns]
-                    examples[available_cols].to_excel(
+        try:
+            with pd.ExcelWriter(comprehensive_filename, engine='xlsxwriter') as writer:
+                # Summary sheets
+                summary_df.to_excel(writer, sheet_name='Analysis_Summary', index=False)
+                comparison_df.to_excel(writer, sheet_name='Insight_Comparison', index=False)
+                recommendations.to_excel(writer, sheet_name='Recommendations', index=False)
+                
+                # Evolution results
+                for insight_type, evolution_df in evolution_results.items():
+                    evolution_df.to_excel(
                         writer, 
-                        sheet_name=f'{insight_type.title()}_Examples', 
+                        sheet_name=f'{insight_type.title()}_Evolution', 
                         index=False
                     )
-        
-        print(f"Comprehensive results exported to: {comprehensive_filename}")
+                
+                # Examples for each insight
+                for insight_type in ['negation', 'agent_contamination', 'qualifying_language']:
+                    if insight_type in analyzer.examples:
+                        examples = analyzer.examples[insight_type]
+                        export_cols = [
+                            'uuid', 'UUID', 'Prosodica L1', 'Prosodica L2', 'Primary Marker',
+                            'Customer_Transcript_Clean', 'Agent_Transcript_Clean'
+                        ]
+                        available_cols = [col for col in export_cols if col in examples.columns]
+                        examples[available_cols].to_excel(
+                            writer, 
+                            sheet_name=f'{insight_type.title()}_Examples', 
+                            index=False
+                        )
+            
+            print(f"Comprehensive results exported to: {comprehensive_filename}")
+        except Exception as e:
+            print(f"Warning: Could not save comprehensive results: {str(e)}")
     
     print("\n" + "="*80)
     print("COMPLETE LIME INTERPRETABILITY PIPELINE FINISHED")
@@ -1157,13 +1216,42 @@ def complete_lime_interpretability_pipeline(df_main, export_results=True):
     
     return analyzer, evolution_results, comparison_df, recommendations
 
-# Example usage with your existing data:
+# Helper function to check LIME version and provide guidance
+def check_lime_version():
+    """Check LIME version and provide guidance"""
+    try:
+        import lime
+        print(f"LIME version: {lime.__version__}")
+        
+        # Test if the LimeTextExplainer works with our parameters
+        try:
+            explainer = LimeTextExplainer(class_names=['Test1', 'Test2'])
+            print("✓ LIME Text Explainer initialized successfully")
+        except Exception as e:
+            print(f"✗ LIME Text Explainer initialization failed: {str(e)}")
+            
+    except ImportError:
+        print("✗ LIME is not installed. Install with: pip install lime")
+    except Exception as e:
+        print(f"✗ Error checking LIME: {str(e)}")
+
+# Example usage with error handling:
 """
+# Check LIME version first
+check_lime_version()
+
 # Load your data (using the same preparation as in your existing scripts)
 df_main, df_validation, df_rules = load_and_prepare_data()
 
 # Run the complete pipeline
-analyzer, evolution_results, comparison_df, recommendations = complete_lime_interpretability_pipeline(df_main)
+try:
+    analyzer, evolution_results, comparison_df, recommendations = complete_lime_interpretability_pipeline(df_main)
+    print("Analysis completed successfully!")
+except Exception as e:
+    print(f"Error during analysis: {str(e)}")
+    # For debugging - run individual steps
+    analyzer = ComplaintsLIMEAnalyzer(df_main)
+    analyzer.train_prediction_models()
 
 # For specific insight analysis only:
 # analyzer, summary = run_comprehensive_lime_analysis(df_main, insights_to_analyze=['negation'])
