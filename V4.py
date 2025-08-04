@@ -1,137 +1,67 @@
-# Updated Model Loading for Your Specific Downloaded Path
-# =====================================================
+# Step 6: TF-IDF keyword analysis (FIXED VERSION)
+print("\nStep 6: Keyword analysis for FP inclination...")
 
-import os
-from sentence_transformers import SentenceTransformer
+# CRITICAL FIX: Ensure proper text data for TF-IDF
+all_clean_texts = df['Customer_Transcript_Clean'].values.tolist()
 
-def load_your_downloaded_bert_model():
-    """
-    Load BERT model from your specific downloaded path
-    """
-    
-    # Your exact path based on the screenshot
-    model_path = "./sentence_transformers_all_miniLM-L6-v2/all-MiniLM-L6-v2"
-    
-    print(f"Loading BERT model from: {model_path}")
-    
-    # Check if the path exists
-    if not os.path.exists(model_path):
-        print(f"❌ Model path not found: {model_path}")
-        print("Current working directory:", os.getcwd())
-        print("Available files:", os.listdir('.'))
-        return None
-    
-    # Check for required files
-    required_files = [
-        'config.json',
-        'pytorch_model.bin',
-        'sentence_bert_config.json'
-    ]
-    
-    print("Checking model files...")
-    missing_files = []
-    for file_name in required_files:
-        file_path = os.path.join(model_path, file_name)
-        if os.path.exists(file_path):
-            file_size = os.path.getsize(file_path) / (1024*1024)  # Size in MB
-            print(f"✅ {file_name} found ({file_size:.1f} MB)")
-        else:
-            missing_files.append(file_name)
-            print(f"❌ {file_name} missing")
-    
-    if missing_files:
-        print(f"Missing required files: {missing_files}")
-        return None
-    
-    try:
-        # Load the model
-        print("Loading model...")
-        bert_model = SentenceTransformer(model_path)
-        print("✅ BERT model loaded successfully!")
-        
-        # Test the model with a sample sentence
-        test_sentence = "This is a test sentence."
-        test_embedding = bert_model.encode([test_sentence])
-        print(f"✅ Model test successful! Embedding shape: {test_embedding.shape}")
-        
-        return bert_model
-        
-    except Exception as e:
-        print(f"❌ Error loading model: {e}")
-        return None
+# Additional cleaning for TF-IDF
+cleaned_texts = []
+valid_indices = []
 
-# REPLACE YOUR EXISTING BERT MODEL LOADING CODE WITH THIS:
-# ========================================================
+for i, text in enumerate(all_clean_texts):
+    if text is not None and isinstance(text, str) and len(text.strip()) > 0:
+        clean_text = str(text).strip()
+        if len(clean_text.split()) >= 2:  # At least 2 words
+            cleaned_texts.append(clean_text)
+            valid_indices.append(i)
 
-# In your bert_contrast_analysis function, replace this section:
-# 
-# model_name = 'all-MiniLM-L6-v2'
-# try:
-#     bert_model = SentenceTransformer(model_name)
-#     print(f"BERT model loaded: {model_name}")
-# except Exception as e:
-#     print(f"Error loading BERT model: {e}")
-#     return None
+print(f"Valid texts for TF-IDF: {len(cleaned_texts)}")
 
-# WITH THIS:
-print("\nStep 2: Loading BERT model from local download...")
-bert_model = load_your_downloaded_bert_model()
+# Update masks for valid indices only
+valid_tp_mask = tp_mask.iloc[valid_indices]
+valid_fp_mask = fp_mask.iloc[valid_indices]
 
-if bert_model is None:
-    print("Failed to load BERT model. Please check the model files.")
-    return None
-
-print("BERT model loaded successfully from local download!")
-
-# Alternative: If your script is in a different location
-def load_bert_with_absolute_path():
-    """
-    If relative path doesn't work, use absolute path
-    """
+try:
+    # TF-IDF with conservative parameters
+    tfidf = TfidfVectorizer(
+        max_features=500,
+        ngram_range=(1, 2),
+        min_df=max(2, int(len(cleaned_texts) * 0.01)),
+        max_df=0.95,
+        stop_words='english',
+        token_pattern=r'\b[a-zA-Z][a-zA-Z]+\b'
+    )
     
-    # Get current directory and build absolute path
-    current_dir = os.getcwd()
-    model_path = os.path.join(current_dir, "sentence_transformers_all_miniLM-L6-v2", "all-MiniLM-L6-v2")
+    tfidf_matrix = tfidf.fit_transform(cleaned_texts)
+    feature_names = tfidf.get_feature_names_out()
     
-    print(f"Trying absolute path: {model_path}")
+    # Calculate means
+    tfidf_dense = tfidf_matrix.toarray()
+    tp_tfidf_mean = np.mean(tfidf_dense[valid_tp_mask], axis=0)
+    fp_tfidf_mean = np.mean(tfidf_dense[valid_fp_mask], axis=0)
     
-    if os.path.exists(model_path):
-        try:
-            bert_model = SentenceTransformer(model_path)
-            return bert_model
-        except Exception as e:
-            print(f"Error with absolute path: {e}")
+    fp_inclination = fp_tfidf_mean - tp_tfidf_mean
     
-    return None
-
-# Debug function to check your folder structure
-def debug_folder_structure():
-    """
-    Debug function to see what's in your folders
-    """
+    # Create keyword analysis
+    keyword_analysis = pd.DataFrame({
+        'keyword': feature_names,
+        'tp_score': tp_tfidf_mean,
+        'fp_score': fp_tfidf_mean,
+        'fp_inclination': fp_inclination,
+        'fp_ratio': np.where(tp_tfidf_mean > 0, fp_tfidf_mean / tp_tfidf_mean, np.inf)
+    })
     
-    print("DEBUG: Current folder structure")
-    print("=" * 40)
+    keyword_analysis = keyword_analysis.sort_values('fp_inclination', ascending=False)
+    keyword_analysis = keyword_analysis[np.isfinite(keyword_analysis['fp_ratio'])]
     
-    # Check current directory
-    print(f"Current directory: {os.getcwd()}")
-    print(f"Files in current directory: {os.listdir('.')}")
+    print("✅ TF-IDF analysis completed successfully")
     
-    # Check the downloaded folder
-    downloaded_folder = "./sentence_transformers_all_miniLM-L6-v2"
-    if os.path.exists(downloaded_folder):
-        print(f"\n✅ Found: {downloaded_folder}")
-        print(f"Contents: {os.listdir(downloaded_folder)}")
-        
-        # Check the model subfolder
-        model_subfolder = os.path.join(downloaded_folder, "all-MiniLM-L6-v2")
-        if os.path.exists(model_subfolder):
-            print(f"\n✅ Found: {model_subfolder}")
-            print(f"Model files: {os.listdir(model_subfolder)}")
-        else:
-            print(f"\n❌ Not found: {model_subfolder}")
-    else:
-        print(f"\n❌ Not found: {downloaded_folder}")
-
-# If you're having issues, run this first to debug:
-# debug_folder_structure()
+except Exception as e:
+    print(f"TF-IDF failed: {e}. Creating minimal analysis...")
+    keyword_analysis = pd.DataFrame({
+        'keyword': ['sample'],
+        'tp_score': [0.1],
+        'fp_score': [0.1], 
+        'fp_inclination': [0.0],
+        'fp_ratio': [1.0]
+    })
