@@ -1,290 +1,206 @@
-# Optimal Clustering with Elbow Method and Silhouette Analysis
-# =============================================================
+# Integration Guide: Replace TF-IDF Section with Advanced Keyword Analysis
+# =========================================================================
 
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score, calinski_harabasz_score
-import matplotlib.pyplot as plt
-import numpy as np
-
-def find_optimal_clusters(embeddings, max_clusters=15, min_clusters=2):
+def integrate_improved_keyword_analysis():
     """
-    Find optimal number of clusters using multiple methods
+    Complete integration guide for replacing Step 6 in your main function
     """
     
-    print(f"Finding optimal clusters (testing {min_clusters} to {max_clusters})...")
+    integration_steps = '''
+    INTEGRATION STEPS FOR IMPROVED KEYWORD ANALYSIS:
+    ===============================================
     
-    # Storage for metrics
-    cluster_range = range(min_clusters, max_clusters + 1)
-    inertias = []
-    silhouette_scores = []
-    calinski_harabasz_scores = []
-    
-    for k in cluster_range:
-        print(f"Testing k={k}...")
-        
-        # Fit K-means
-        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-        cluster_labels = kmeans.fit_predict(embeddings)
-        
-        # Calculate metrics
-        inertia = kmeans.inertia_
-        sil_score = silhouette_score(embeddings, cluster_labels)
-        ch_score = calinski_harabasz_score(embeddings, cluster_labels)
-        
-        inertias.append(inertia)
-        silhouette_scores.append(sil_score)
-        calinski_harabasz_scores.append(ch_score)
-        
-        print(f"  k={k}: Inertia={inertia:.0f}, Silhouette={sil_score:.3f}, CH_Score={ch_score:.1f}")
-    
-    # Find optimal k using different methods
-    optimal_k_results = analyze_clustering_metrics(
-        cluster_range, inertias, silhouette_scores, calinski_harabasz_scores
-    )
-    
-    # Create visualization
-    plot_clustering_metrics(
-        cluster_range, inertias, silhouette_scores, calinski_harabasz_scores, optimal_k_results
-    )
-    
-    return optimal_k_results
-
-def analyze_clustering_metrics(cluster_range, inertias, silhouette_scores, calinski_harabasz_scores):
-    """
-    Analyze clustering metrics to find optimal k
-    """
-    
-    cluster_range = list(cluster_range)
-    
-    # Method 1: Elbow method (rate of change in inertia)
-    deltas = np.diff(inertias)
-    second_deltas = np.diff(deltas)
-    
-    # Find elbow (maximum second derivative)
-    elbow_idx = np.argmax(second_deltas) + 2  # +2 because of double diff
-    elbow_k = cluster_range[elbow_idx] if elbow_idx < len(cluster_range) else cluster_range[0]
-    
-    # Method 2: Maximum silhouette score
-    max_sil_idx = np.argmax(silhouette_scores)
-    silhouette_k = cluster_range[max_sil_idx]
-    
-    # Method 3: Maximum Calinski-Harabasz score
-    max_ch_idx = np.argmax(calinski_harabasz_scores)
-    calinski_k = cluster_range[max_ch_idx]
-    
-    # Method 4: Stability analysis (rate of change in silhouette)
-    sil_stability = np.diff(silhouette_scores)
-    stable_idx = np.argmin(np.abs(sil_stability)) + 1  # Most stable point
-    stability_k = cluster_range[stable_idx] if stable_idx < len(cluster_range) else cluster_range[0]
-    
-    results = {
-        'elbow_method': elbow_k,
-        'max_silhouette': silhouette_k,
-        'max_calinski': calinski_k,
-        'stability_point': stability_k,
-        'all_metrics': {
-            'cluster_range': cluster_range,
-            'inertias': inertias,
-            'silhouette_scores': silhouette_scores,
-            'calinski_scores': calinski_harabasz_scores
-        }
-    }
-    
-    print("\nOptimal Cluster Analysis Results:")
-    print(f"  Elbow Method: k = {elbow_k}")
-    print(f"  Max Silhouette: k = {silhouette_k} (score: {silhouette_scores[max_sil_idx]:.3f})")
-    print(f"  Max Calinski-Harabasz: k = {calinski_k} (score: {calinski_harabasz_scores[max_ch_idx]:.1f})")
-    print(f"  Stability Point: k = {stability_k}")
-    
-    # Recommend final k (weighted decision)
-    k_votes = [elbow_k, silhouette_k, calinski_k]
-    recommended_k = max(set(k_votes), key=k_votes.count)  # Most common vote
-    
-    # If no consensus, use silhouette (most reliable for semantic data)
-    if k_votes.count(recommended_k) == 1:
-        recommended_k = silhouette_k
-    
-    results['recommended_k'] = recommended_k
-    print(f"\nRecommended k: {recommended_k}")
-    
-    return results
-
-def plot_clustering_metrics(cluster_range, inertias, silhouette_scores, calinski_scores, results):
-    """
-    Plot clustering evaluation metrics
-    """
-    
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    fig.suptitle('Clustering Optimization Analysis', fontsize=16, fontweight='bold')
-    
-    cluster_range = list(cluster_range)
-    
-    # Plot 1: Elbow Method (Inertia)
-    ax1 = axes[0, 0]
-    ax1.plot(cluster_range, inertias, 'bo-', linewidth=2, markersize=8)
-    ax1.axvline(x=results['elbow_method'], color='red', linestyle='--', 
-                label=f"Elbow: k={results['elbow_method']}")
-    ax1.set_xlabel('Number of Clusters (k)')
-    ax1.set_ylabel('Inertia (Within-cluster Sum of Squares)')
-    ax1.set_title('Elbow Method')
-    ax1.grid(True, alpha=0.3)
-    ax1.legend()
-    
-    # Plot 2: Silhouette Score
-    ax2 = axes[0, 1]
-    ax2.plot(cluster_range, silhouette_scores, 'go-', linewidth=2, markersize=8)
-    ax2.axvline(x=results['max_silhouette'], color='red', linestyle='--',
-                label=f"Max: k={results['max_silhouette']}")
-    ax2.set_xlabel('Number of Clusters (k)')
-    ax2.set_ylabel('Silhouette Score')
-    ax2.set_title('Silhouette Analysis')
-    ax2.grid(True, alpha=0.3)
-    ax2.legend()
-    
-    # Plot 3: Calinski-Harabasz Score
-    ax3 = axes[1, 0]
-    ax3.plot(cluster_range, calinski_scores, 'mo-', linewidth=2, markersize=8)
-    ax3.axvline(x=results['max_calinski'], color='red', linestyle='--',
-                label=f"Max: k={results['max_calinski']}")
-    ax3.set_xlabel('Number of Clusters (k)')
-    ax3.set_ylabel('Calinski-Harabasz Score')
-    ax3.set_title('Calinski-Harabasz Index')
-    ax3.grid(True, alpha=0.3)
-    ax3.legend()
-    
-    # Plot 4: Summary with recommendation
-    ax4 = axes[1, 1]
-    
-    # Normalize scores for comparison
-    norm_inertias = [(max(inertias) - x) / (max(inertias) - min(inertias)) for x in inertias]
-    norm_silhouette = [(x - min(silhouette_scores)) / (max(silhouette_scores) - min(silhouette_scores)) 
-                      for x in silhouette_scores]
-    norm_calinski = [(x - min(calinski_scores)) / (max(calinski_scores) - min(calinski_scores)) 
-                    for x in calinski_scores]
-    
-    ax4.plot(cluster_range, norm_inertias, 'b-', label='Elbow (inverted)', alpha=0.7)
-    ax4.plot(cluster_range, norm_silhouette, 'g-', label='Silhouette', alpha=0.7)
-    ax4.plot(cluster_range, norm_calinski, 'm-', label='Calinski-Harabasz', alpha=0.7)
-    
-    ax4.axvline(x=results['recommended_k'], color='red', linestyle='-', linewidth=3,
-                label=f"Recommended: k={results['recommended_k']}")
-    
-    ax4.set_xlabel('Number of Clusters (k)')
-    ax4.set_ylabel('Normalized Score')
-    ax4.set_title('Method Comparison')
-    ax4.grid(True, alpha=0.3)
-    ax4.legend()
-    
-    plt.tight_layout()
-    plt.show()
-    
-    return fig
-
-def advanced_clustering_analysis(embeddings, df, tp_mask, fp_mask):
-    """
-    Complete clustering analysis with optimal k selection
-    """
-    
-    print("="*60)
-    print("ADVANCED CLUSTERING ANALYSIS")
-    print("="*60)
-    
-    # Find optimal number of clusters
-    optimal_results = find_optimal_clusters(embeddings, max_clusters=15)
-    
-    # Use recommended k for final clustering
-    recommended_k = optimal_results['recommended_k']
-    
-    print(f"\nFinal clustering with k={recommended_k}...")
-    final_kmeans = KMeans(n_clusters=recommended_k, random_state=42, n_init=20)
-    final_clusters = final_kmeans.fit_predict(embeddings)
-    
-    # Add cluster labels to dataframe
-    df_clustered = df.copy()
-    df_clustered['optimal_cluster'] = final_clusters
-    
-    # Analyze cluster composition with optimal k
-    cluster_composition = analyze_optimal_clusters(df_clustered, tp_mask, fp_mask)
-    
-    return {
-        'optimal_k': recommended_k,
-        'cluster_labels': final_clusters,
-        'clustering_metrics': optimal_results,
-        'cluster_composition': cluster_composition,
-        'clustered_df': df_clustered
-    }
-
-def analyze_optimal_clusters(df, tp_mask, fp_mask):
-    """
-    Analyze composition of optimally determined clusters
-    """
-    
-    cluster_analysis = df.groupby('optimal_cluster').agg({
-        'Is_TP': ['count', 'sum', 'mean'],
-        'Is_FP': ['count', 'sum', 'mean']
-    }).round(3)
-    
-    cluster_analysis.columns = ['total_count', 'tp_count', 'tp_ratio', 'fp_total', 'fp_count', 'fp_ratio']
-    cluster_analysis = cluster_analysis[['total_count', 'tp_count', 'tp_ratio', 'fp_count', 'fp_ratio']]
-    
-    print("\nOptimal Cluster Composition Analysis:")
-    print(cluster_analysis)
-    
-    # Identify problem clusters
-    fp_dominated = cluster_analysis[cluster_analysis['fp_ratio'] > 0.6]
-    tp_dominated = cluster_analysis[cluster_analysis['tp_ratio'] > 0.8]
-    mixed_clusters = cluster_analysis[
-        (cluster_analysis['fp_ratio'] <= 0.6) & (cluster_analysis['tp_ratio'] <= 0.8)
-    ]
-    
-    print(f"\nCluster Analysis Summary:")
-    print(f"  FP-dominated clusters: {len(fp_dominated)} (>60% FP)")
-    print(f"  TP-dominated clusters: {len(tp_dominated)} (>80% TP)")
-    print(f"  Mixed clusters: {len(mixed_clusters)}")
-    
-    return {
-        'full_analysis': cluster_analysis,
-        'fp_dominated': fp_dominated,
-        'tp_dominated': tp_dominated,
-        'mixed_clusters': mixed_clusters
-    }
-
-# INTEGRATION: Replace your clustering section with this
-def replace_clustering_in_your_code():
-    """
-    Code to replace the arbitrary clustering in your main function
-    """
-    
-    replacement_code = '''
-    # REPLACE THIS SECTION (around line 280):
-    # 
-    # # Step 7: Clustering analysis
-    # print("\\nStep 7: Clustering analysis...")
-    # 
-    # # K-means clustering on embeddings
-    # n_clusters = min(8, len(df) // 10)  # Adaptive cluster count
-    # kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    # clusters = kmeans.fit_predict(embeddings)
-    
-    # WITH THIS:
-    
-    # Step 7: Advanced clustering analysis with optimal k
-    print("\\nStep 7: Advanced clustering analysis...")
-    
-    # Find optimal clusters using multiple methods
-    clustering_results = advanced_clustering_analysis(embeddings, df, tp_mask, fp_mask)
-    
-    # Update dataframe with optimal clusters
-    df = clustering_results['clustered_df']
-    cluster_analysis = clustering_results['cluster_composition']['full_analysis']
-    n_clusters = clustering_results['optimal_k']
-    
-    print(f"Optimal number of clusters: {n_clusters}")
+    STEP 1: ADD the improved functions before your main function
+    STEP 2: REPLACE Step 6 section in your main function
+    STEP 3: UPDATE the export section to handle new results
     '''
     
-    return replacement_code
+    return integration_steps
 
-if __name__ == "__main__":
-    print("CLUSTERING OPTIMIZATION GUIDE")
-    print("="*40)
-    print(replace_clustering_in_your_code())
+# STEP 1: Add these functions before your main function
+def create_domain_specific_stopwords():
+    """
+    Create comprehensive stopwords including conversational fillers
+    (ADD THIS FUNCTION BEFORE bert_contrast_analysis)
+    """
+    
+    # Standard English stopwords
+    standard_stopwords = {
+        'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 
+        'your', 'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 
+        'she', 'her', 'hers', 'herself', 'it', 'its', 'itself', 'they', 'them', 
+        'their', 'theirs', 'themselves', 'what', 'which', 'who', 'whom', 'this', 
+        'that', 'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 
+        'being', 'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 
+        'a', 'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 
+        'while', 'of', 'at', 'by', 'for', 'with', 'through', 'during', 'before', 
+        'after', 'above', 'below', 'up', 'down', 'in', 'out', 'on', 'off', 'over', 
+        'under', 'again', 'further', 'then', 'once'
+    }
+    
+    # Customer service conversation fillers
+    conversation_fillers = {
+        'okay', 'ok', 'yes', 'yeah', 'yep', 'no', 'hmm', 'um', 'uh', 'ah',
+        'well', 'so', 'like', 'you know', 'right', 'sure', 'exactly',
+        'absolutely', 'definitely', 'certainly', 'of course', 'obviously'
+    }
+    
+    # Politeness markers (context-specific stopwords)
+    politeness_markers = {
+        'please', 'thank', 'thanks', 'thank you', 'welcome', 'sorry',
+        'excuse me', 'pardon', 'appreciate', 'grateful', 'kindly'
+    }
+    
+    # Customer service specific terms
+    service_stopwords = {
+        'hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening',
+        'have a nice day', 'take care', 'bye', 'goodbye', 'see you',
+        'help', 'assist', 'support', 'service', 'customer', 'sir', 'madam',
+        'mam', 'mfm', 'call', 'phone', 'line', 'hold', 'wait'
+    }
+    
+    # Combine all stopword categories
+    comprehensive_stopwords = (standard_stopwords | 
+                             conversation_fillers | 
+                             politeness_markers | 
+                             service_stopwords)
+    
+    return comprehensive_stopwords
+
+def advanced_keyword_analysis(df, tp_mask, fp_mask):
+    """
+    Advanced keyword analysis focusing on meaningful content words
+    (ADD THIS FUNCTION BEFORE bert_contrast_analysis)
+    """
+    
+    print("\nStep 6: Advanced Keyword Analysis (Filtering Context-Specific Stopwords)...")
+    
+    # Get domain-specific stopwords
+    domain_stopwords = create_domain_specific_stopwords()
+    
+    # Get clean texts
+    all_clean_texts = df['Customer_Transcript_Clean'].values.tolist()
+    
+    # Additional cleaning for TF-IDF
+    cleaned_texts = []
+    valid_indices = []
+
+    for i, text in enumerate(all_clean_texts):
+        if text is not None and isinstance(text, str) and len(text.strip()) > 0:
+            clean_text_str = str(text).strip()
+            if len(clean_text_str.split()) >= 3:  # At least 3 words for meaningful analysis
+                cleaned_texts.append(clean_text_str)
+                valid_indices.append(i)
+
+    print(f"Valid texts for advanced TF-IDF: {len(cleaned_texts)} out of {len(all_clean_texts)}")
+
+    if len(cleaned_texts) < 20:
+        print("Warning: Very few texts for keyword analysis. Results may not be reliable.")
+        return create_fallback_keyword_analysis()
+
+    # Update masks for valid indices only
+    valid_tp_mask = tp_mask.iloc[valid_indices]
+    valid_fp_mask = fp_mask.iloc[valid_indices]
+
+    try:
+        # Advanced TF-IDF with domain knowledge
+        advanced_tfidf = TfidfVectorizer(
+            max_features=1000,
+            ngram_range=(1, 3),  # Include trigrams for context
+            min_df=max(3, int(len(cleaned_texts) * 0.02)),  # Higher minimum frequency
+            max_df=0.8,  # Remove very common terms
+            stop_words=list(domain_stopwords),  # Use our comprehensive stopwords
+            token_pattern=r'\b[a-zA-Z][a-zA-Z][a-zA-Z]+\b',  # At least 3 characters
+            sublinear_tf=True,  # Better handling of term frequencies
+            norm='l2'  # L2 normalization
+        )
+        
+        tfidf_matrix = advanced_tfidf.fit_transform(cleaned_texts)
+        feature_names = advanced_tfidf.get_feature_names_out()
+        
+        print(f"Features after advanced filtering: {len(feature_names)}")
+        
+        # Calculate class-specific means
+        tfidf_dense = tfidf_matrix.toarray()
+        tp_mean = np.mean(tfidf_dense[valid_tp_mask], axis=0)
+        fp_mean = np.mean(tfidf_dense[valid_fp_mask], axis=0)
+        
+        # Calculate discriminative power
+        fp_inclination = fp_mean - tp_mean
+        
+        # Additional metrics for better analysis
+        tp_std = np.std(tfidf_dense[valid_tp_mask], axis=0)
+        fp_std = np.std(tfidf_dense[valid_fp_mask], axis=0)
+        
+        # Statistical significance (simple t-test approximation)
+        pooled_std = np.sqrt((tp_std**2 + fp_std**2) / 2)
+        t_statistic = fp_inclination / (pooled_std + 1e-8)  # Avoid division by zero
+        
+        # Create enhanced keyword analysis
+        enhanced_analysis = pd.DataFrame({
+            'keyword': feature_names,
+            'tp_score': tp_mean,
+            'fp_score': fp_mean,
+            'fp_inclination': fp_inclination,
+            'statistical_significance': np.abs(t_statistic),
+            'tp_std': tp_std,
+            'fp_std': fp_std,
+            'discriminative_power': np.abs(fp_inclination) * np.abs(t_statistic)
+        })
+        
+        # Sort by discriminative power (combines effect size and significance)
+        enhanced_analysis = enhanced_analysis.sort_values(
+            'discriminative_power', ascending=False
+        )
+        
+        # Filter for meaningful differences
+        meaningful_keywords = enhanced_analysis[
+            (enhanced_analysis['statistical_significance'] > 1.0) &  # Some significance
+            (np.abs(enhanced_analysis['fp_inclination']) > 0.001)     # Meaningful difference
+        ]
+        
+        print(f"Meaningful discriminative keywords found: {len(meaningful_keywords)}")
+        
+        # Print top results
+        print("\nTop 10 MEANINGFUL keywords most inclined toward False Positives:")
+        for i, (_, row) in enumerate(meaningful_keywords.head(10).iterrows(), 1):
+            print(f"   {i:2d}. '{row['keyword']}' | FP: {row['fp_score']:.4f} | TP: {row['tp_score']:.4f}")
+            print(f"       Diff: {row['fp_inclination']:+.4f} | Significance: {row['statistical_significance']:.2f}")
+        
+        # Return both enhanced and meaningful analyses
+        return {
+            'enhanced_analysis': enhanced_analysis,
+            'meaningful_keywords': meaningful_keywords,
+            'stopwords_used': domain_stopwords,
+            'analysis_type': 'advanced'
+        }
+        
+    except Exception as e:
+        print(f"Advanced keyword analysis failed: {e}. Using fallback...")
+        return create_fallback_keyword_analysis()
+
+def create_fallback_keyword_analysis():
+    """
+    Create fallback analysis if advanced method fails
+    """
+    
+    print("Creating fallback keyword analysis...")
+    
+    fallback_analysis = pd.DataFrame({
+        'keyword': ['analysis_failed'],
+        'tp_score': [0.1],
+        'fp_score': [0.1], 
+        'fp_inclination': [0.0],
+        'statistical_significance': [0.0],
+        'discriminative_power': [0.0]
+    })
+    
+    return {
+        'enhanced_analysis': fallback_analysis,
+        'meaningful_keywords': fallback_analysis,
+        'stopwords_used': set(),
+        'analysis_type': 'fallback'
+    }
+
+
+
