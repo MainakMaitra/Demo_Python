@@ -1,18 +1,3 @@
-from io import BytesIO
-import warnings
-import oracledb
-import configparser
-import pandas as pd
-import logging
-from datetime import datetime
-
-# Filter warnings like in your original code
-warnings.filterwarnings("ignore")
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 def get_conn_str(hostname, port, servicename):
     """
     Returns oracle connection string.
@@ -122,18 +107,52 @@ def main():
         config = configparser.ConfigParser(interpolation=None)
         config.read('/var/run/secrets/user_credentials/PQC_CONFIG')
         
-        # Get DB credentials
-        PUB_HOSTNAME = config.get('pub_conn', 'hostname')
-        PUB_PORT = config.get('pub_conn', 'port')
-        PUB_SERVICENAME = config.get('pub_conn', 'servicename')
-        PUB_USERNAME = config.get('pub_conn', 'username')
-        PUB_PWD = config.get('pub_conn', 'password')
+        # Print available sections and options for debugging
+        print("Available config sections:", config.sections())
+        if config.has_section('pub_conn'):
+            print("Available options in pub_conn:", config.options('pub_conn'))
+        
+        # Get DB credentials with error handling
+        try:
+            PUB_HOSTNAME = config.get('pub_conn', 'hostname')
+            PUB_PORT = config.get('pub_conn', 'port')
+            PUB_SERVICENAME = config.get('pub_conn', 'servicename')
+            PUB_USERNAME = config.get('pub_conn', 'username')
+            
+            # Try different possible password field names
+            password_fields = ['password', 'pwd', 'PUB_PWD', 'PASSWORD']
+            PUB_PWD = None
+            
+            for pwd_field in password_fields:
+                if config.has_option('pub_conn', pwd_field):
+                    PUB_PWD = config.get('pub_conn', pwd_field)
+                    print(f"Found password field: {pwd_field}")
+                    break
+            
+            if PUB_PWD is None:
+                print("Password field not found in config. Available options:")
+                for option in config.options('pub_conn'):
+                    print(f"  - {option}")
+                raise Exception("Password configuration not found")
+                
+        except Exception as config_error:
+            print(f"Configuration error: {config_error}")
+            print("\nPlease check your config file structure.")
+            print("Expected structure:")
+            print("[pub_conn]")
+            print("hostname = your_host")
+            print("port = your_port") 
+            print("servicename = your_service")
+            print("username = your_user")
+            print("password = your_password")
+            return
         
         # Create connection string using your function
         conn_str = get_conn_str(PUB_HOSTNAME, PUB_PORT, PUB_SERVICENAME)
         
         print("Connecting to Oracle database...")
         print(f"Connection string: {conn_str}")
+        print(f"Username: {PUB_USERNAME}")
         
         # Connect to database using your pattern
         connection = oracledb.connect(user=PUB_USERNAME, password=PUB_PWD, dsn=conn_str)
