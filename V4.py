@@ -1,3 +1,24 @@
+from io import BytesIO
+import warnings
+import oracledb
+import configparser
+import pandas as pd
+import logging
+
+# Filter warnings like in your original code
+warnings.filterwarnings("ignore")
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def get_conn_str(hostname, port, servicename):
+    """
+    Returns oracle connection string.
+    """
+    res = hostname + ':' + port + '/' + servicename
+    return res
+
 def analyze_table_structure(connection, table_name):
     """
     Analyze table structure including columns, data types, and sample data
@@ -150,7 +171,8 @@ def main():
         # Connect to database using your pattern
         connection = oracledb.connect(user=PUB_USERNAME, password=PUB_PWD, dsn=conn_str)
         
-        print(f"Successfully connected to database at {datetime.now()}")
+        # Remove datetime.now() call to avoid import issues
+        print("Successfully connected to database")
         
         # Tables to analyze
         tables_to_analyze = [
