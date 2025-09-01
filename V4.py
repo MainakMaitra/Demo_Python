@@ -1,8 +1,13 @@
+from io import BytesIO
+import warnings
 import oracledb
-import pandas as pd
 import configparser
+import pandas as pd
 import logging
 from datetime import datetime
+
+# Filter warnings like in your original code
+warnings.filterwarnings("ignore")
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -12,7 +17,8 @@ def get_conn_str(hostname, port, servicename):
     """
     Returns oracle connection string.
     """
-    return f"{hostname}:{port}/{servicename}"
+    res = hostname + ':' + port + '/' + servicename
+    return res
 
 def analyze_table_structure(connection, table_name):
     """
@@ -112,53 +118,25 @@ def main():
     Main function to analyze PQC tables
     """
     try:
-        # Read configuration - adjust path as needed
+        # Read configuration following your existing pattern
         config = configparser.ConfigParser(interpolation=None)
+        config.read('/var/run/secrets/user_credentials/PQC_CONFIG')
         
-        # Try different possible config paths
-        config_paths = [
-            "/var/mt/suncrest/user_credentials/PQC_CONFIG",
-            "./PQC_CONFIG",  # Local path
-            "../config/PQC_CONFIG"  # Alternative path
-        ]
+        # Get DB credentials
+        PUB_HOSTNAME = config.get('pub_conn', 'hostname')
+        PUB_PORT = config.get('pub_conn', 'port')
+        PUB_SERVICENAME = config.get('pub_conn', 'servicename')
+        PUB_USERNAME = config.get('pub_conn', 'username')
+        PUB_PWD = config.get('pub_conn', 'password')
         
-        config_loaded = False
-        for config_path in config_paths:
-            try:
-                config.read(config_path)
-                if config.sections():  # Check if config was loaded
-                    print(f"Configuration loaded from: {config_path}")
-                    config_loaded = True
-                    break
-            except:
-                continue
-        
-        if not config_loaded:
-            print("Configuration file not found. Please provide database connection details manually.")
-            print("Update the script with your database connection parameters.")
-            
-            # Manual configuration - UPDATE THESE VALUES
-            hostname = "your_hostname"
-            port = "your_port"
-            servicename = "your_servicename"
-            username = "your_username"
-            password = "your_password"
-        else:
-            # Get DB credentials from config
-            hostname = config.get("pub_conn", "hostname")
-            port = config.get("pub_conn", "port")
-            servicename = config.get("pub_conn", "servicename")
-            username = config.get("pub_conn", "username")
-            password = config.get("pub_conn", "password")
-        
-        # Create connection string
-        conn_str = get_conn_str(hostname, port, servicename)
+        # Create connection string using your function
+        conn_str = get_conn_str(PUB_HOSTNAME, PUB_PORT, PUB_SERVICENAME)
         
         print("Connecting to Oracle database...")
-        print(f"Connection string: {hostname}:{port}/{servicename}")
+        print(f"Connection string: {conn_str}")
         
-        # Connect to database
-        connection = oracledb.connect(user=username, password=password, dsn=conn_str)
+        # Connect to database using your pattern
+        connection = oracledb.connect(user=PUB_USERNAME, password=PUB_PWD, dsn=conn_str)
         
         print(f"Successfully connected to database at {datetime.now()}")
         
