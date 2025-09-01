@@ -1,10 +1,3 @@
-def get_conn_str(hostname, port, servicename):
-    """
-    Returns oracle connection string.
-    """
-    res = hostname + ':' + port + '/' + servicename
-    return res
-
 def analyze_table_structure(connection, table_name):
     """
     Analyze table structure including columns, data types, and sample data
