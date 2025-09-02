@@ -47,8 +47,8 @@ print("\nLoading data from tables...")
 # Load case assignments data
 query_assignments = f"""
 SELECT * FROM pqc_case_assignments 
-WHERE pqc_assignment_date >= '{start_date}' 
-AND pqc_assignment_date <= '{end_date}'
+WHERE PQC_ASSIGNMENT_DATE >= '{start_date}' 
+AND PQC_ASSIGNMENT_DATE <= '{end_date}'
 """
 df_assignments = pd.read_sql(query_assignments, conn)
 print(f"Assignments loaded: {len(df_assignments)} records")
@@ -56,8 +56,8 @@ print(f"Assignments loaded: {len(df_assignments)} records")
 # Load case questions aggregated data
 query_aggr = f"""
 SELECT * FROM pqc_case_questions_aggr 
-WHERE pqc_assignment_date >= '{start_date}' 
-AND pqc_assignment_date <= '{end_date}'
+WHERE PQC_ASSIGNMENT_DATE >= '{start_date}' 
+AND PQC_ASSIGNMENT_DATE <= '{end_date}'
 """
 df_aggr = pd.read_sql(query_aggr, conn)
 print(f"Aggregated questions loaded: {len(df_aggr)} records")
@@ -65,11 +65,21 @@ print(f"Aggregated questions loaded: {len(df_aggr)} records")
 # Load case closures data
 query_closures = f"""
 SELECT * FROM pqc_case_closures 
-WHERE pqc_assignment_date >= '{start_date}' 
-AND pqc_assignment_date <= '{end_date}'
+WHERE PQC_ASSIGNMENT_DATE >= '{start_date}' 
+AND PQC_ASSIGNMENT_DATE <= '{end_date}'
 """
 df_closures = pd.read_sql(query_closures, conn)
 print(f"Closures loaded: {len(df_closures)} records")
+
+# Clean column names - convert to lowercase and strip spaces
+df_assignments.columns = df_assignments.columns.str.lower().str.strip()
+df_aggr.columns = df_aggr.columns.str.lower().str.strip()
+df_closures.columns = df_closures.columns.str.lower().str.strip()
+
+# Debug: Print column names to verify
+print("Assignments columns:", df_assignments.columns.tolist())
+print("Aggr columns:", df_aggr.columns.tolist())
+print("Closures columns:", df_closures.columns.tolist())
 
 # Convert dates to datetime
 df_assignments['pqc_assignment_date'] = pd.to_datetime(df_assignments['pqc_assignment_date'])
