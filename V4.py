@@ -188,39 +188,56 @@ print("\n" + "="*60)
 print("GEOGRAPHY (INDIA VS DOMESTIC)")
 print("="*60)
 
-# Row 14: Number of cases worked daily
-# Using is_spanish_case as proxy - assuming Spanish = Domestic, Non-Spanish = India
-domestic_cases = df_assignments[df_assignments['is_spanish_case'] == 'Yes'].groupby('pqc_assignment_date').size()
-india_cases = df_assignments[df_assignments['is_spanish_case'] != 'Yes'].groupby('pqc_assignment_date').size()
+# Define India and Domestic managers based on manager feedback
+india_managers = ['Cicily', 'Savithry', 'Ayesha', 'Pavani', 'Rupa']
 
-avg_domestic_daily = domestic_cases.mean() if len(domestic_cases) > 0 else 0
-avg_india_daily = india_cases.mean() if len(india_cases) > 0 else 0
+# Row 14: Number of cases worked daily
+# Using manager names to classify geography
+india_assignments = df_assignments[df_assignments['pqc_name'].isin(india_managers)]
+domestic_assignments = df_assignments[~df_assignments['pqc_name'].isin(india_managers)]
+
+# Calculate daily case counts by geography
+india_daily_cases = india_assignments.groupby('pqc_assignment_date').size()
+domestic_daily_cases = domestic_assignments.groupby('pqc_assignment_date').size()
+
+avg_india_daily = india_daily_cases.mean() if len(india_daily_cases) > 0 else 0
+avg_domestic_daily = domestic_daily_cases.mean() if len(domestic_daily_cases) > 0 else 0
 
 print(f"\n14. Number of cases worked daily:")
-print(f"    - Domestic: {avg_domestic_daily:.1f} cases/day")
 print(f"    - India: {avg_india_daily:.1f} cases/day")
+print(f"    - Domestic: {avg_domestic_daily:.1f} cases/day")
 
 # Row 15: Sendback rates by geography
-domestic_keys = df_assignments[df_assignments['is_spanish_case'] == 'Yes']['case_key'].unique()
-india_keys = df_assignments[df_assignments['is_spanish_case'] != 'Yes']['case_key'].unique()
+# Get case keys for each geography
+india_case_keys = india_assignments['case_key'].unique()
+domestic_case_keys = domestic_assignments['case_key'].unique()
 
-domestic_aggr = df_aggr[df_aggr['case_key'].isin(domestic_keys)]
-india_aggr = df_aggr[df_aggr['case_key'].isin(india_keys)]
+# Filter aggregated data by geography
+india_aggr = df_aggr[df_aggr['case_key'].isin(india_case_keys)]
+domestic_aggr = df_aggr[df_aggr['case_key'].isin(domestic_case_keys)]
 
-domestic_sendback_rate = (domestic_aggr['case_key_lvl_sendback_flag'] == 'True').mean() * 100 if len(domestic_aggr) > 0 else 0
+# Calculate sendback rates
 india_sendback_rate = (india_aggr['case_key_lvl_sendback_flag'] == 'True').mean() * 100 if len(india_aggr) > 0 else 0
+domestic_sendback_rate = (domestic_aggr['case_key_lvl_sendback_flag'] == 'True').mean() * 100 if len(domestic_aggr) > 0 else 0
 
 print(f"\n15. Sendback rates by geography:")
-print(f"    - Domestic: {domestic_sendback_rate:.1f}%")
 print(f"    - India: {india_sendback_rate:.1f}%")
+print(f"    - Domestic: {domestic_sendback_rate:.1f}%")
 
 # Row 16: Correction rates by geography
-domestic_correction_rate = (domestic_aggr['case_key_lvl_defect_flag'] == 'True').mean() * 100 if len(domestic_aggr) > 0 else 0
 india_correction_rate = (india_aggr['case_key_lvl_defect_flag'] == 'True').mean() * 100 if len(india_aggr) > 0 else 0
+domestic_correction_rate = (domestic_aggr['case_key_lvl_defect_flag'] == 'True').mean() * 100 if len(domestic_aggr) > 0 else 0
 
 print(f"\n16. Correction rates by geography:")
-print(f"    - Domestic: {domestic_correction_rate:.1f}%")
 print(f"    - India: {india_correction_rate:.1f}%")
+print(f"    - Domestic: {domestic_correction_rate:.1f}%")
+
+# Additional insight: Show manager distribution
+print(f"\nManager Distribution:")
+print(f"    - India Managers: {len(india_managers)} ({', '.join(india_managers)})")
+print(f"    - Domestic Managers: {len(domestic_assignments['pqc_name'].unique())} total")
+print(f"    - India Cases: {len(india_assignments):,}")
+print(f"    - Domestic Cases: {len(domestic_assignments):,}")
 
 # =============================================================================
 # SECTION 3: GENERAL INFORMATION (Rows 18-27)
