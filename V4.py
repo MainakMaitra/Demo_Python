@@ -273,8 +273,17 @@ print("\n" + "="*60)
 print("OPERATIONS")
 print("="*60)
 
+# Note: pqc_case_questions_aggr doesn't have ccr_investigator_sso
+# We need to join with assignments table to get CCR manager info
+
+# Create a mapping of case_key to ccr_investigator_sso from assignments
+ccr_mapping = df_assignments[['case_key', 'ccr_investigator_sso']].drop_duplicates()
+
+# Merge aggr data with CCR manager info
+df_aggr_with_ccr = df_aggr.merge(ccr_mapping, on='case_key', how='left')
+
 # Row 30: Defect rate by Operations CCR Manager
-ccr_manager_defects = df_aggr.groupby('ccr_investigator_sso').agg({
+ccr_manager_defects = df_aggr_with_ccr.groupby('ccr_investigator_sso').agg({
     'case_key_lvl_defect_flag': lambda x: (x == 'True').mean() * 100,
     'case_key': 'count'
 }).reset_index()
@@ -286,7 +295,7 @@ for _, row in ccr_manager_defects.iterrows():
     print(f"    - {row['ccr_manager']}: {row['defect_rate']:.1f}% ({row['total_cases']} cases)")
 
 # Row 31: Sendback rates by Operations CCR Manager
-ccr_manager_sendbacks = df_aggr.groupby('ccr_investigator_sso').agg({
+ccr_manager_sendbacks = df_aggr_with_ccr.groupby('ccr_investigator_sso').agg({
     'case_key_lvl_sendback_flag': lambda x: (x == 'True').mean() * 100,
     'case_key': 'count'
 }).reset_index()
