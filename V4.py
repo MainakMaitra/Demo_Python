@@ -184,7 +184,7 @@ def analyze_month(month_name, df_assignments, df_aggr, df_closures):
     # GEOGRAPHY ANALYSIS
     # =============================================================================
     
-    india_managers = ['Cicily', 'Savithry', 'Ayesha', 'Pavani', 'Rupa']
+    india_managers = ['Cicily Raj', 'Savithry Kandregula', 'Ayesha Ahmed', 'Pavani Shelly', 'Rupa Talla', 'Rupa T']
     
     if len(df_assignments) > 0:
         india_assignments = df_assignments[df_assignments['pqc_name'].isin(india_managers)]
@@ -591,9 +591,7 @@ for month in months:
     print(f"{monthly_results[month]['five_to_8_approval']:.1f}%"[:14].ljust(15), end="")
 print()
 
-print(f"{'    9+ cases/day group:':<50} ", end="")
-for month in months:
-    print(f"{monthly_results[month]['nine_plus_approval']:.1f}%"[:14].ljust(15), end="")
+print(f"{'    9+ cases/day: {nine_plus_approval:.1f}%"[:14].ljust(15), end="")
 print()
 
 print("\n🌍 GEOGRAPHY (INDIA VS DOMESTIC) - MONTHLY COMPARISON")
@@ -681,7 +679,7 @@ for month in months:
     print(f"  • India vs Domestic: {result['avg_india_daily']:.1f} vs {result['avg_domestic_daily']:.1f} cases/day")
 
 print("\n" + "="*100)
-print("MONTHLY ANALYSIS COMPLETE ✅")
+print("MONTHLY ANALYSIS COMPLETE")
 print("="*100)
 
 # Close database connection
