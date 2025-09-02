@@ -520,7 +520,7 @@ print("="*100)
 # Create comparison table for easy viewing
 months = ['June', 'July', 'August']
 
-print("\n📊 QUALITY REVIEW STATS - MONTHLY COMPARISON")
+print("\nQUALITY REVIEW STATS - MONTHLY COMPARISON")
 print("-" * 80)
 print(f"{'Metric':<50} {'June':<15} {'July':<15} {'August':<15}")
 print("-" * 80)
@@ -591,10 +591,12 @@ for month in months:
     print(f"{monthly_results[month]['five_to_8_approval']:.1f}%"[:14].ljust(15), end="")
 print()
 
-print(f"{'    9+ cases/day: {nine_plus_approval:.1f}%"[:14].ljust(15), end="")
+print(f"{'    9+ cases/day group:':<50} ", end="")
+for month in months:
+    print(f"{monthly_results[month]['nine_plus_approval']:.1f}%"[:14].ljust(15), end="")
 print()
 
-print("\n🌍 GEOGRAPHY (INDIA VS DOMESTIC) - MONTHLY COMPARISON")
+print("\nGEOGRAPHY (INDIA VS DOMESTIC) - MONTHLY COMPARISON")
 print("-" * 80)
 print(f"{'Metric':<50} {'June':<15} {'July':<15} {'August':<15}")
 print("-" * 80)
@@ -629,7 +631,7 @@ for month in months:
     print(f"{monthly_results[month]['domestic_correction_rate']:.1f}%"[:14].ljust(15), end="")
 print()
 
-print("\n📈 GENERAL INFORMATION - MONTHLY COMPARISON")
+print("\nGENERAL INFORMATION - MONTHLY COMPARISON")
 print("-" * 80)
 print(f"{'Metric':<50} {'June':<15} {'July':<15} {'August':<15}")
 print("-" * 80)
@@ -669,7 +671,7 @@ for month in months:
     print(f"{monthly_results[month]['rate_sent_back']:.1f}%"[:14].ljust(15), end="")
 print()
 
-print("\n📋 MONTHLY SUMMARY STATISTICS")
+print("\nMONTHLY SUMMARY STATISTICS")
 print("-" * 80)
 for month in months:
     result = monthly_results[month]
